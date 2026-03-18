@@ -1,0 +1,201 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Page Not Found - NextTrack</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/favicon.svg' %}">
+    <meta name="theme-color" content="#1DB954">
+    <style>
+        :root {
+            --primary-color: #1DB954;
+            --secondary-color: #191414;
+            --bg-color: #121212;
+            --bg-card: #181818;
+            --text-color: #ffffff;
+            --text-muted: #b3b3b3;
+            --border-color: #282828;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .error-container {
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .error-icon {
+            font-size: 6rem;
+            margin-bottom: 1.5rem;
+            opacity: 0.8;
+        }
+
+        .error-code {
+            font-size: 5rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+            letter-spacing: -2px;
+        }
+
+        .error-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .error-message {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .error-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.875rem 1.75rem;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: var(--secondary-color);
+        }
+
+        .btn-primary:hover {
+            background: #1ed760;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(29, 185, 84, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+            transform: translateY(-2px);
+        }
+
+        .btn:focus-visible {
+            outline: 3px solid var(--primary-color);
+            outline-offset: 3px;
+        }
+
+        .suggestions {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .suggestions h2 {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+
+        .suggestions ul {
+            list-style: none;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            justify-content: center;
+        }
+
+        .suggestions a {
+            color: var(--primary-color);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            background: rgba(29, 185, 84, 0.1);
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+
+        .suggestions a:hover {
+            background: rgba(29, 185, 84, 0.2);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .btn:hover {
+                transform: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="error-container" role="main">
+        <div class="error-icon" aria-hidden="true">
+            <svg width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9 9l6 6M15 9l-6 6"></path>
+            </svg>
+        </div>
+        <h1 class="error-code">404</h1>
+        <p class="error-title">Page Not Found</p>
+        <p class="error-message">
+            The track you're looking for seems to have skipped.
+            It might have been moved, deleted, or perhaps it never existed.
+        </p>
+        <div class="error-actions">
+            <a href="/" class="btn btn-primary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h3a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1h3a1 1 0 001-1V10"></path>
+                </svg>
+                Go Home
+            </a>
+            <button onclick="history.back()" class="btn btn-secondary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M19 12H5M12 19l-7-7 7-7"></path>
+                </svg>
+                Go Back
+            </button>
+        </div>
+
+        <div class="suggestions">
+            <h2>Try these instead:</h2>
+            <ul>
+                <li><a href="/">Search for Music</a></li>
+                <li><a href="/builder/">Build Playlist</a></li>
+                <li><a href="/results/">Get Recommendations</a></li>
+                <li><a href="/analytics/">View Analytics</a></li>
+            </ul>
+        </div>
+    </main>
+</body>
+</html>

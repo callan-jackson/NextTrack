@@ -1,0 +1,803 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NextTrack{% endblock %} - Music Recommendations</title>
+
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="{% block meta_description %}NextTrack uses AI-powered content-based filtering to recommend music based on audio features. Discover new tracks that match your taste.{% endblock %}">
+    <meta name="keywords" content="music recommendation, playlist generator, Spotify, music discovery, AI recommendations, content-based filtering">
+    <meta name="author" content="NextTrack">
+    <meta name="robots" content="index, follow">
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="{{ request.build_absolute_uri }}">
+
+    <!-- Open Graph / Social Sharing -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{% block og_title %}NextTrack - AI Music Recommendations{% endblock %}">
+    <meta property="og:description" content="Discover your next favorite track with AI-powered music recommendations based on audio features.">
+    <meta property="og:image" content="{% block og_image %}{% static 'images/og-image.svg' %}{% endblock %}">
+    <meta property="og:url" content="{{ request.build_absolute_uri }}">
+    <meta property="og:site_name" content="NextTrack">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="NextTrack - AI Music Recommendations">
+    <meta name="twitter:description" content="Discover your next favorite track with AI-powered music recommendations.">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/favicon.svg' %}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{% static 'images/favicon-32x32.png' %}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{% static 'images/favicon-16x16.png' %}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{% static 'images/apple-touch-icon.png' %}">
+    <meta name="theme-color" content="#1DB954">
+
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/components.css' %}">
+    <link rel="stylesheet" href="{% static 'css/tour.css' %}">
+    <link rel="stylesheet" href="{% static 'css/tooltips.css' %}">
+    <!-- FontAwesome for loading icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" defer>
+    <style>
+        /* Skip Link for Keyboard Navigation */
+        .skip-link {
+            position: absolute;
+            top: -100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--primary-color, #1db954);
+            color: var(--secondary-color, #191414);
+            padding: 0.75rem 1.5rem;
+            border-radius: 0 0 8px 8px;
+            font-weight: 600;
+            z-index: 100001;
+            transition: top 0.3s ease;
+            text-decoration: none;
+        }
+        .skip-link:focus {
+            top: 0;
+            outline: 3px solid var(--text-color);
+            outline-offset: 2px;
+        }
+
+        /* Screen Reader Only Content */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* Live Region for Screen Reader Announcements */
+        .sr-announcer {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* Enhanced Focus Indicators */
+        *:focus-visible {
+            outline: 3px solid var(--primary-color, #1db954);
+            outline-offset: 3px;
+        }
+        button:focus-visible,
+        a:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 3px solid var(--primary-color, #1db954);
+            outline-offset: 3px;
+            box-shadow: 0 0 0 6px rgba(29, 185, 84, 0.25);
+        }
+
+        /* Reduced Motion Support */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+        /* Full page loading overlay - Global */
+        .loading-overlay-global {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
+            z-index: 99999;
+            justify-content: center;
+            align-items: center;
+        }
+        .loading-overlay-global.active {
+            display: flex;
+        }
+        .loading-container-global {
+            background: var(--bg-card, #1a1a2e);
+            border-radius: 20px;
+            padding: 3rem 4rem;
+            text-align: center;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6);
+            border: 1px solid var(--border-color, #333);
+        }
+        .loading-spinner-global {
+            width: 56px;
+            height: 56px;
+            border: 3px solid var(--border-color, #333);
+            border-top-color: var(--primary-color, #1db954);
+            border-radius: 50%;
+            animation: spinGlobal 0.8s linear infinite;
+            margin: 0 auto 1.5rem;
+            box-shadow: 0 0 20px rgba(29, 185, 84, 0.2);
+        }
+        @keyframes spinGlobal {
+            to { transform: rotate(360deg); }
+        }
+        .loading-text-global {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-color, #fff);
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.3px;
+        }
+        .loading-subtext-global {
+            font-size: 0.95rem;
+            color: var(--text-muted, #888);
+        }
+        .loading-steps-global {
+            margin-top: 1.5rem;
+            text-align: left;
+        }
+        .loading-step-global {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            font-size: 0.9rem;
+            color: var(--text-muted, #888);
+            opacity: 0.5;
+            transition: opacity 0.3s ease, color 0.3s ease;
+        }
+        .loading-step-global.active {
+            opacity: 1;
+            color: var(--text-color, #fff);
+        }
+        .loading-step-global.completed {
+            opacity: 1;
+            color: var(--primary-color, #1db954);
+        }
+        .loading-step-global i {
+            width: 20px;
+            text-align: center;
+        }
+        .loading-step-global.active i {
+            animation: pulseGlobal 1s infinite;
+        }
+        @keyframes pulseGlobal {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        /* Step Indicator */
+        .step-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary, #1a1a2e);
+            border-bottom: 1px solid var(--border-color, #333);
+            font-size: 0.85rem;
+        }
+        .step-indicator-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: var(--text-muted, #888);
+            text-decoration: none;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            transition: color 0.2s;
+        }
+        .step-indicator-item:hover {
+            color: var(--text-color, #fff);
+        }
+        .step-indicator-item.active {
+            color: var(--primary-color, #1db954);
+            font-weight: 600;
+        }
+        .step-indicator-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--border-color, #333);
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+        .step-indicator-item.active .step-indicator-number {
+            background: var(--primary-color, #1db954);
+            color: var(--secondary-color, #191414);
+        }
+        .step-indicator-separator {
+            color: var(--text-muted, #888);
+            font-size: 0.75rem;
+        }
+
+        /* Offline Banner */
+        .offline-banner {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.6rem 1rem;
+            background: rgba(239, 68, 68, 0.15);
+            border-bottom: 1px solid rgba(239, 68, 68, 0.3);
+            color: #ef4444;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        /* Back-to-Top Button */
+        .back-to-top-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: var(--primary-color, #1db954);
+            color: var(--secondary-color, #191414);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            box-shadow: 0 4px 12px rgba(29, 185, 84, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+            z-index: 1000;
+        }
+        .back-to-top-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(29, 185, 84, 0.4);
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <!-- Skip Link for Keyboard Navigation -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <!-- Screen Reader Live Region for Announcements -->
+    <div id="sr-announcer" class="sr-announcer" aria-live="polite" aria-atomic="true"></div>
+
+    <!-- Global Loading Overlay - supports recommendations and search contexts -->
+    <div class="loading-overlay-global" id="loading-overlay-global" data-context="recommendations" role="dialog" aria-modal="true" aria-labelledby="loading-title" aria-describedby="loading-desc">
+        <div class="loading-container-global">
+            <div class="loading-spinner-global" role="status" aria-label="Loading"></div>
+            <div class="loading-text-global" id="loading-title">Generating Recommendations</div>
+            <div class="loading-subtext-global" id="loading-desc">Building your personalized music profile...</div>
+            <div class="loading-steps-global" aria-label="Loading progress">
+                <div class="loading-step-global active" data-step="1" role="listitem">
+                    <i class="fa-solid fa-dna" aria-hidden="true"></i>
+                    <span>Analyzing audio features</span>
+                </div>
+                <div class="loading-step-global" data-step="2" role="listitem">
+                    <i class="fa-solid fa-calculator" aria-hidden="true"></i>
+                    <span>Computing taste centroid</span>
+                </div>
+                <div class="loading-step-global" data-step="3" role="listitem">
+                    <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                    <span>Finding similar tracks</span>
+                </div>
+                <div class="loading-step-global" data-step="4" role="listitem">
+                    <i class="fa-solid fa-globe" aria-hidden="true"></i>
+                    <span>Fetching from MusicBrainz & Wikidata</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    // Immediately check if we should show loading overlay (runs before page renders)
+    (function() {
+        var isLoading = sessionStorage.getItem('recommendationsLoading');
+        var overlay = document.getElementById('loading-overlay-global');
+        var currentPath = window.location.pathname;
+        var isResultsPage = (currentPath === '/results/' || currentPath === '/results');
+
+        // If not navigating to results page, clear the loading state entirely
+        if (isLoading && !isResultsPage) {
+            sessionStorage.removeItem('recommendationsLoading');
+            return;
+        }
+
+        if (isLoading && overlay) {
+            overlay.classList.add('active');
+
+            // If we're on the results page, show all steps as complete immediately
+            // (the work is done, we're just waiting for the page to finish rendering)
+            if (isResultsPage) {
+                var steps = overlay.querySelectorAll('.loading-step-global');
+                steps.forEach(function(step) {
+                    step.classList.remove('active');
+                    step.classList.add('completed');
+                    var icon = step.querySelector('i');
+                    if (icon) icon.className = 'fa-solid fa-check';
+                });
+                var subtext = overlay.querySelector('.loading-subtext-global');
+                if (subtext) subtext.textContent = 'Your recommendations are ready!';
+            }
+
+            if (window.NEXTTRACK_DEBUG) console.log('[NextTrack] Loading overlay shown from sessionStorage');
+        }
+    })();
+
+    // Global function to trigger recommendations loading
+    window.NextTrackLoadingOverlay = {
+        show: function() {
+            var overlay = document.getElementById('loading-overlay-global');
+            if (overlay) {
+                sessionStorage.setItem('recommendationsLoading', 'true');
+                overlay.classList.add('active');
+                this.animateSteps();
+                if (window.NEXTTRACK_DEBUG) console.log('[NextTrack] Loading overlay shown');
+            }
+        },
+        hide: function() {
+            var overlay = document.getElementById('loading-overlay-global');
+            if (!overlay) return;
+
+            // First, mark ALL steps as complete
+            var steps = overlay.querySelectorAll('.loading-step-global');
+            steps.forEach(function(step) {
+                step.classList.remove('active');
+                step.classList.add('completed');
+                var icon = step.querySelector('i');
+                if (icon) icon.className = 'fa-solid fa-check';
+            });
+
+            // Update subtext to show completion
+            var subtext = overlay.querySelector('.loading-subtext-global');
+            if (subtext) subtext.textContent = 'Your recommendations are ready!';
+
+            // Brief pause to show completed state, then fade out
+            setTimeout(function() {
+                overlay.style.transition = 'opacity 0.3s ease';
+                overlay.style.opacity = '0';
+
+                setTimeout(function() {
+                    overlay.classList.remove('active');
+                    overlay.style.opacity = '';
+                    overlay.style.transition = '';
+
+                    // Reset steps for next time
+                    steps.forEach(function(step, index) {
+                        step.classList.remove('completed', 'active');
+                        if (index === 0) step.classList.add('active');
+                        var icon = step.querySelector('i');
+                        if (icon) {
+                            var icons = ['fa-dna', 'fa-calculator', 'fa-magnifying-glass', 'fa-globe'];
+                            icon.className = 'fa-solid ' + icons[index];
+                        }
+                    });
+
+                    // Reset subtext
+                    if (subtext) subtext.textContent = 'Analyzing your playlist\'s audio DNA...';
+
+                    sessionStorage.removeItem('recommendationsLoading');
+                    if (window.NEXTTRACK_DEBUG) console.log('[NextTrack] Loading overlay hidden');
+                }, 300);
+            }, 400);
+        },
+        showSearch: function(query) {
+            var overlay = document.getElementById('loading-overlay-global');
+            if (overlay) {
+                overlay.setAttribute('data-context', 'search');
+                var title = overlay.querySelector('.loading-text-global');
+                var subtext = overlay.querySelector('.loading-subtext-global');
+                var stepsContainer = overlay.querySelector('.loading-steps-global');
+                if (title) title.textContent = 'Searching...';
+                if (subtext) subtext.textContent = 'Searching for "' + (query || '') + '"';
+                if (stepsContainer) stepsContainer.style.display = 'none';
+                sessionStorage.setItem('searchInProgress', query || '');
+                overlay.classList.add('active');
+                if (window.NEXTTRACK_DEBUG) console.log('[NextTrack] Search overlay shown');
+            }
+        },
+        hideSearch: function() {
+            var overlay = document.getElementById('loading-overlay-global');
+            if (!overlay || overlay.getAttribute('data-context') !== 'search') return;
+            overlay.classList.remove('active');
+            this._resetToRecommendations(overlay);
+            sessionStorage.removeItem('searchInProgress');
+        },
+        _resetToRecommendations: function(overlay) {
+            overlay.setAttribute('data-context', 'recommendations');
+            var title = overlay.querySelector('.loading-text-global');
+            var subtext = overlay.querySelector('.loading-subtext-global');
+            var stepsContainer = overlay.querySelector('.loading-steps-global');
+            if (title) title.textContent = 'Generating Recommendations';
+            if (subtext) subtext.textContent = 'Building your personalized music profile...';
+            if (stepsContainer) stepsContainer.style.display = '';
+            var steps = overlay.querySelectorAll('.loading-step-global');
+            var icons = ['fa-dna', 'fa-calculator', 'fa-magnifying-glass', 'fa-globe'];
+            steps.forEach(function(step, index) {
+                step.classList.remove('completed', 'active');
+                if (index === 0) step.classList.add('active');
+                var icon = step.querySelector('i');
+                if (icon) icon.className = 'fa-solid ' + icons[index];
+            });
+        },
+        navigate: function() {
+            // Show loading overlay and navigate to results
+            if (window.NEXTTRACK_DEBUG) console.log('[NextTrack] Navigate called');
+            this.show();
+            setTimeout(function() {
+                window.location.href = '/results/';
+            }, 100);
+            return false; // Prevent default link behavior
+        },
+        animateSteps: function() {
+            var overlay = document.getElementById('loading-overlay-global');
+            if (!overlay) return;
+            var steps = overlay.querySelectorAll('.loading-step-global');
+            var currentStep = 0;
+
+            function advanceStep() {
+                if (currentStep > 0 && currentStep <= steps.length) {
+                    steps[currentStep - 1].classList.remove('active');
+                    steps[currentStep - 1].classList.add('completed');
+                    var icon = steps[currentStep - 1].querySelector('i');
+                    if (icon) icon.className = 'fa-solid fa-check';
+                }
+                if (currentStep < steps.length) {
+                    steps[currentStep].classList.add('active');
+                    currentStep++;
+                }
+            }
+
+            setTimeout(advanceStep, 400);
+            setTimeout(advanceStep, 800);
+            setTimeout(advanceStep, 1200);
+        }
+    };
+    </script>
+
+    <!-- Mobile menu overlay -->
+    <div class="nav-overlay" id="nav-overlay" aria-hidden="true"></div>
+
+    <header role="banner">
+        <nav class="navbar" role="navigation" aria-label="Main navigation">
+            <div class="nav-brand">
+                <a href="/" aria-label="NextTrack Home">
+                    <span aria-hidden="true">NextTrack</span>
+                </a>
+            </div>
+
+            <!-- Hamburger menu button (mobile only) -->
+            <button class="hamburger" id="hamburger" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="nav-links">
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+                <span aria-hidden="true"></span>
+            </button>
+
+            <div class="nav-links" id="nav-links" role="menubar">
+                <button class="theme-toggle" id="theme-toggle" aria-label="Toggle light/dark mode" title="Toggle light/dark mode">
+                    <i class="fa-solid fa-sun" id="theme-icon" aria-hidden="true"></i>
+                </button>
+                <a href="/" role="menuitem" class="{% if request.path == '/' %}active{% endif %}" {% if request.path == '/' %}aria-current="page"{% endif %}>
+                    <span class="sr-only">Go to </span>Search
+                </a>
+                <a href="/builder/" role="menuitem" class="{% if request.path == '/builder/' %}active{% endif %}" {% if request.path == '/builder/' %}aria-current="page"{% endif %}>
+                    Playlist Builder
+                    <span class="badge playlist-count" {% if not playlist_count %}style="display:none"{% endif %} aria-label="{{ playlist_count|default:'0' }} tracks in playlist">{{ playlist_count|default:"0" }}</span>
+                </a>
+                <a href="/results/" role="menuitem" class="{% if request.path == '/results/' %}active{% endif %}" {% if request.path == '/results/' %}aria-current="page"{% endif %} id="nav-get-recommendations">
+                    Get Recommendations
+                </a>
+                <a href="/feedback/history/" role="menuitem" class="{% if request.path == '/feedback/history/' %}active{% endif %}" {% if request.path == '/feedback/history/' %}aria-current="page"{% endif %}">
+                    My Feedback
+                </a>
+                <a href="/analytics/" role="menuitem" class="{% if request.path == '/analytics/' %}active{% endif %}" {% if request.path == '/analytics/' %}aria-current="page"{% endif %}">
+                    <i class="fa-solid fa-chart-line" aria-hidden="true"></i>
+                    <span class="sr-only">View </span>Analytics
+                </a>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Step Indicator -->
+    <div class="step-indicator" aria-label="Progress steps">
+        <a href="/" class="step-indicator-item {% if request.path == '/' %}active{% endif %}">
+            <span class="step-indicator-number">1</span> Search
+        </a>
+        <span class="step-indicator-separator" aria-hidden="true">&gt;</span>
+        <a href="/builder/" class="step-indicator-item {% if request.path == '/builder/' %}active{% endif %}">
+            <span class="step-indicator-number">2</span> Build
+        </a>
+        <span class="step-indicator-separator" aria-hidden="true">&gt;</span>
+        <a href="/results/" class="step-indicator-item {% if request.path == '/results/' %}active{% endif %}">
+            <span class="step-indicator-number">3</span> Discover
+        </a>
+    </div>
+
+    <!-- Offline Banner -->
+    <div id="offline-banner" class="offline-banner" role="alert" style="display: none;">
+        <i class="fa-solid fa-wifi" aria-hidden="true"></i>
+        <span>You are currently offline. Some features may be unavailable.</span>
+    </div>
+
+    <main id="main-content" class="container" role="main" tabindex="-1">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer" role="contentinfo">
+        <p>NextTrack - AI-Powered Music Recommendation System</p>
+        <p class="small">Built with Django, NumPy, PostgreSQL | Data from MusicBrainz, Wikidata, Spotify, Last.fm</p>
+        <p class="small">
+            <a href="/analytics/">View Analytics Dashboard</a>
+            <span style="margin: 0 0.5rem;">|</span>
+            <a href="#" id="footer-start-tour">Take a Tour</a>
+        </p>
+    </footer>
+
+    <!-- Floating Back-to-Top Button -->
+    <button id="back-to-top" class="back-to-top-btn" aria-label="Back to top" style="display: none;">
+        <i class="fa-solid fa-arrow-up" aria-hidden="true"></i>
+    </button>
+
+    <script src="{% static 'js/common.js' %}"></script>
+    {% block scripts %}{% endblock %}
+    {% block extra_scripts %}{% endblock %}
+
+    <!-- Mobile hamburger menu toggle -->
+    <script>
+    (function() {
+        const hamburger = document.getElementById('hamburger');
+        const navLinks = document.getElementById('nav-links');
+        const navOverlay = document.getElementById('nav-overlay');
+
+        function toggleMenu() {
+            const isExpanded = hamburger.getAttribute('aria-expanded') === 'true';
+            hamburger.classList.toggle('active');
+            navLinks.classList.toggle('active');
+            navOverlay.classList.toggle('active');
+            // Update ARIA state
+            hamburger.setAttribute('aria-expanded', !isExpanded);
+            navOverlay.setAttribute('aria-hidden', isExpanded);
+            // Prevent body scroll when menu is open
+            document.body.style.overflow = navLinks.classList.contains('active') ? 'hidden' : '';
+            // Announce to screen readers
+            window.announceToScreenReader(isExpanded ? 'Navigation menu closed' : 'Navigation menu opened');
+        }
+
+        function closeMenu() {
+            hamburger.classList.remove('active');
+            navLinks.classList.remove('active');
+            navOverlay.classList.remove('active');
+            hamburger.setAttribute('aria-expanded', 'false');
+            navOverlay.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+        }
+
+        hamburger.addEventListener('click', toggleMenu);
+        navOverlay.addEventListener('click', closeMenu);
+
+        // Close menu when a link is clicked
+        navLinks.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', closeMenu);
+        });
+
+        // Close menu on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && navLinks.classList.contains('active')) {
+                closeMenu();
+                hamburger.focus(); // Return focus to hamburger button
+            }
+        });
+    })();
+
+    // Global function to announce messages to screen readers
+    window.announceToScreenReader = function(message, priority) {
+        const announcer = document.getElementById('sr-announcer');
+        if (announcer) {
+            // Set priority (polite or assertive)
+            announcer.setAttribute('aria-live', priority === 'assertive' ? 'assertive' : 'polite');
+            // Clear and set message (forces re-announcement)
+            announcer.textContent = '';
+            setTimeout(function() {
+                announcer.textContent = message;
+            }, 100);
+        }
+    };
+    </script>
+
+    <!-- Global Recommendations Loading Handler -->
+    <script>
+    (function() {
+        'use strict';
+
+        var currentPath = window.location.pathname;
+        var isResultsPage = (currentPath === '/results/' || currentPath === '/results');
+
+        // If we're on the results page and loading was in progress, hide the overlay after content loads
+        if (isResultsPage && sessionStorage.getItem('recommendationsLoading')) {
+            if (window.NEXTTRACK_DEBUG) console.log('[NextTrack] Results page loaded, hiding overlay');
+            setTimeout(function() {
+                window.NextTrackLoadingOverlay.hide();
+            }, 500);
+        }
+
+        // Safety timeout: if overlay is still showing after 30 seconds, force-hide it.
+        // This prevents the infinite loading state if the page errors or hangs.
+        if (sessionStorage.getItem('recommendationsLoading')) {
+            setTimeout(function() {
+                var overlay = document.getElementById('loading-overlay-global');
+                if (overlay && overlay.classList.contains('active')) {
+                    if (window.NEXTTRACK_DEBUG) console.warn('[NextTrack] Safety timeout: force-hiding loading overlay');
+                    sessionStorage.removeItem('recommendationsLoading');
+                    overlay.classList.remove('active');
+                    overlay.style.opacity = '';
+                    overlay.style.transition = '';
+                }
+            }, 30000);
+        }
+
+        // Handle browser back button (bfcache)
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted) {
+                sessionStorage.removeItem('recommendationsLoading');
+                var overlay = document.getElementById('loading-overlay-global');
+                if (overlay) overlay.classList.remove('active');
+            }
+        });
+
+        // Also clear loading state on any page that is NOT the results page
+        if (!isResultsPage) {
+            sessionStorage.removeItem('recommendationsLoading');
+        }
+    })();
+    </script>
+
+    <!-- Enhanced UX: Tour, Progress, Recent Searches -->
+    <script src="{% static 'js/tour.js' %}"></script>
+    <script src="{% static 'js/playlist-progress.js' %}"></script>
+    <script src="{% static 'js/recent-searches.js' %}"></script>
+
+    <!-- Back-to-Top Button Logic -->
+    <script>
+    (function() {
+        var btn = document.getElementById('back-to-top');
+        if (!btn) return;
+        window.addEventListener('scroll', function() {
+            if (window.scrollY > 500) {
+                btn.style.display = 'flex';
+            } else {
+                btn.style.display = 'none';
+            }
+        });
+        btn.addEventListener('click', function() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    })();
+    </script>
+
+    <!-- Offline Detection -->
+    <script>
+    (function() {
+        var banner = document.getElementById('offline-banner');
+        if (!banner) return;
+        function updateOnlineStatus() {
+            if (navigator.onLine) {
+                banner.style.display = 'none';
+                if (window.announceToScreenReader) {
+                    window.announceToScreenReader('You are back online');
+                }
+            } else {
+                banner.style.display = 'flex';
+                if (window.announceToScreenReader) {
+                    window.announceToScreenReader('You are currently offline');
+                }
+            }
+        }
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        if (!navigator.onLine) banner.style.display = 'flex';
+    })();
+    </script>
+
+    <!-- Theme Toggle (Light/Dark Mode) -->
+    <script>
+    (function() {
+        var toggle = document.getElementById('theme-toggle');
+        var icon = document.getElementById('theme-icon');
+        if (!toggle || !icon) return;
+
+        function getEffectiveTheme() {
+            var stored = localStorage.getItem('nexttrack-theme');
+            if (stored) return stored;
+            return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+
+        function applyTheme(theme) {
+            if (theme === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+                icon.className = 'fa-solid fa-moon';
+            } else {
+                document.documentElement.setAttribute('data-theme', 'dark');
+                icon.className = 'fa-solid fa-sun';
+            }
+        }
+
+        // Apply on load
+        var current = getEffectiveTheme();
+        applyTheme(current);
+
+        toggle.addEventListener('click', function() {
+            var newTheme = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+            localStorage.setItem('nexttrack-theme', newTheme);
+            applyTheme(newTheme);
+            if (window.announceToScreenReader) {
+                window.announceToScreenReader('Switched to ' + newTheme + ' mode');
+            }
+        });
+    })();
+    </script>
+
+    <!-- Conditional Debug Logging -->
+    <script>
+    (function() {
+        if (!window.NEXTTRACK_DEBUG) {
+            window._ntLog = function() {};
+            window._ntWarn = function() {};
+        } else {
+            window._ntLog = console.log.bind(console);
+            window._ntWarn = console.warn.bind(console);
+        }
+    })();
+    </script>
+
+    <!-- Event listeners for base template interactive elements -->
+    <script>
+    (function() {
+        var navRecsLink = document.getElementById('nav-get-recommendations');
+        if (navRecsLink) {
+            navRecsLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                window.NextTrackLoadingOverlay.navigate();
+            });
+        }
+
+        var tourLink = document.getElementById('footer-start-tour');
+        if (tourLink) {
+            tourLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                window.startTour();
+            });
+        }
+    })();
+    </script>
+</body>
+</html>

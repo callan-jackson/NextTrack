@@ -1,0 +1,627 @@
+{% extends 'catalog/base.html' %}
+
+{% block title %}Playlist Builder{% endblock %}
+
+{% block meta_description %}Build your musical taste profile by adding tracks you love. NextTrack analyzes audio features to create personalized recommendations.{% endblock %}
+
+{% block extra_head %}
+<style>
+    .alert {
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .alert-info {
+        background: rgba(29, 185, 84, 0.15);
+        border: 1px solid var(--primary-color);
+        color: var(--text-color);
+    }
+    .alert-info i {
+        color: var(--primary-color);
+        font-size: 1.2rem;
+    }
+
+    .playlist-item-with-player {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 1rem;
+        background-color: var(--bg-card);
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    .playlist-item-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+    }
+    .spotify-embed-small {
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .spotify-embed-small iframe {
+        border: none;
+        border-radius: 12px;
+    }
+    .track-number {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        background: var(--border-color);
+        border-radius: 50%;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-right: 0.75rem;
+        flex-shrink: 0;
+    }
+    .track-main-info {
+        display: flex;
+        align-items: flex-start;
+    }
+    /* Modal, unanalyzed-warning, btn-add styles are in components.css */
+
+    /* Builder-specific modal-header icon color override */
+    #clear-modal .modal-header i {
+        color: var(--danger-color);
+    }
+
+    /* Staggered playlist item entrance */
+    @keyframes slideInLeft {
+        from {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+    .playlist-item-with-player {
+        animation: slideInLeft 0.3s ease both;
+    }
+    .playlist-item-with-player:nth-child(1) { animation-delay: 0.05s; }
+    .playlist-item-with-player:nth-child(2) { animation-delay: 0.1s; }
+    .playlist-item-with-player:nth-child(3) { animation-delay: 0.15s; }
+    .playlist-item-with-player:nth-child(4) { animation-delay: 0.2s; }
+    .playlist-item-with-player:nth-child(5) { animation-delay: 0.25s; }
+    .playlist-item-with-player:nth-child(n+6) { animation-delay: 0.3s; }
+
+    /* Enhanced Get Recommendations CTA */
+    .playlist-actions .btn-primary.btn-large {
+        position: relative;
+        box-shadow: 0 4px 20px rgba(29, 185, 84, 0.3);
+    }
+    .playlist-actions .btn-primary.btn-large:hover {
+        box-shadow: 0 6px 30px rgba(29, 185, 84, 0.45);
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Clear Playlist Confirmation Modal -->
+<div class="modal-overlay" id="clear-modal">
+    <div class="modal-container">
+        <div class="modal-header">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <h3>Clear Entire Playlist?</h3>
+        </div>
+        <div class="modal-body">
+            Are you sure you want to remove all <strong>{{ playlist_count }} track{{ playlist_count|pluralize }}</strong> from your playlist? This action cannot be undone.
+        </div>
+        <div class="modal-actions">
+            <button class="modal-btn modal-btn-cancel" id="clear-cancel">Cancel</button>
+            <button class="modal-btn modal-btn-danger" id="clear-confirm">
+                <i class="fa-solid fa-trash"></i> Yes, Clear All
+            </button>
+        </div>
+    </div>
+</div>
+<div class="page-header">
+    <h1>Your Playlist</h1>
+    <p>Build your musical profile by adding tracks you love. We'll analyze their audio DNA to find your next favorites.</p>
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.5rem;">
+        <i class="fa-solid fa-clock" aria-hidden="true"></i>
+        Your playlist is saved in your session for 7 days.
+    </p>
+</div>
+
+{% if playlist_tracks %}
+<!-- Taste Preview: Real-Time Centroid -->
+<div class="taste-preview" id="taste-preview">
+    <h3><i class="fa-solid fa-chart-bar"></i> Taste Preview</h3>
+    <div class="taste-preview-bars">
+        <div class="taste-bar-item">
+            <span class="taste-bar-label">Energy</span>
+            <div class="taste-bar-track"><div class="taste-bar-fill" id="tp-energy" style="width:0%;background:linear-gradient(90deg,var(--bar-energy),var(--primary-color));"></div></div>
+            <span class="taste-bar-value" id="tp-energy-val">--</span>
+        </div>
+        <div class="taste-bar-item">
+            <span class="taste-bar-label">Valence</span>
+            <div class="taste-bar-track"><div class="taste-bar-fill" id="tp-valence" style="width:0%;background:linear-gradient(90deg,#e67e22,var(--bar-valence));"></div></div>
+            <span class="taste-bar-value" id="tp-valence-val">--</span>
+        </div>
+        <div class="taste-bar-item">
+            <span class="taste-bar-label">Danceability</span>
+            <div class="taste-bar-track"><div class="taste-bar-fill" id="tp-dance" style="width:0%;background:linear-gradient(90deg,#c0392b,var(--bar-dance));"></div></div>
+            <span class="taste-bar-value" id="tp-dance-val">--</span>
+        </div>
+        <div class="taste-bar-item">
+            <span class="taste-bar-label">Acousticness</span>
+            <div class="taste-bar-track"><div class="taste-bar-fill" id="tp-acoustic" style="width:0%;background:linear-gradient(90deg,#2980b9,var(--bar-acoustic));"></div></div>
+            <span class="taste-bar-value" id="tp-acoustic-val">--</span>
+        </div>
+        <div class="taste-bar-item">
+            <span class="taste-bar-label">Tempo</span>
+            <div class="taste-bar-track"><div class="taste-bar-fill" id="tp-tempo" style="width:0%;background:linear-gradient(90deg,#8b5cf6,#a855f7);"></div></div>
+            <span class="taste-bar-value" id="tp-tempo-val">--</span>
+        </div>
+    </div>
+</div>
+
+<!-- Spotify Preview Notice -->
+<div class="alert alert-info">
+    <i class="fa-brands fa-spotify"></i>
+    <span>Note: Spotify plays 30-second previews unless you are logged into the Spotify app on this device. Due to browser security policies, we cannot auto-play the next song. Please click play on each track.</span>
+</div>
+
+<div class="playlist-section">
+    <div class="playlist-header">
+        <span>{{ playlist_count }} track{{ playlist_count|pluralize }} in your playlist</span>
+        <!-- Hidden form for actual submission -->
+        <form method="post" action="/builder/" class="inline-form" id="clear-form" style="display: none;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="clear">
+        </form>
+        <!-- Button triggers confirmation modal -->
+        <button type="button" class="btn btn-small btn-danger" id="clear-btn">
+            <i class="fa-solid fa-trash"></i> Clear All
+        </button>
+    </div>
+
+    <div class="playlist-tracks" id="playlist-tracks">
+        {% for track in playlist_tracks %}
+        <div class="playlist-item-with-player" draggable="true" data-track-id="{{ track.id }}" aria-grabbed="false">
+            <div class="playlist-item-header">
+                <div class="track-main-info">
+                    <span class="drag-handle" aria-label="Drag to reorder" title="Drag to reorder" role="img">&#10495;</span>
+                    <span class="track-number">{{ forloop.counter }}</span>
+                    <div class="track-info">
+                        <h3 class="track-title">{{ track.title }}</h3>
+                        <p class="track-artist">{{ track.artist.name }}</p>
+                        <div class="track-features-small">
+                            <span>Energy: {{ track.energy|floatformat:2 }}</span>
+                            <span>Valence: {{ track.valence|floatformat:2 }}</span>
+                            <span>Dance: {{ track.danceability|floatformat:2 }}</span>
+                        </div>
+                        {% if not track.is_audio_analyzed %}
+                        <div class="unanalyzed-warning" title="Audio features unavailable - using neutral defaults">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span>Limited analysis - recommendation accuracy reduced</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <button type="button" class="btn btn-small btn-remove btn-remove-ajax"
+                        data-track-id="{{ track.id }}"
+                        data-track-title="{{ track.title }}"
+                        data-track-artist="{{ track.artist.name }}">
+                    <i class="fa-solid fa-xmark"></i> Remove
+                </button>
+            </div>
+
+            <!-- Spotify Embed Player (lazy-loaded) -->
+            <div class="spotify-embed-small">
+                <iframe
+                    data-src="https://open.spotify.com/embed/track/{{ track.id }}?utm_source=generator&theme=0"
+                    width="100%"
+                    height="80"
+                    frameBorder="0"
+                    allowfullscreen=""
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                    title="Spotify player for {{ track.title }} by {{ track.artist.name }}">
+                </iframe>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="playlist-actions">
+        <a href="/results/" class="btn btn-primary btn-large" id="builder-get-recs">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Get Recommendations
+        </a>
+    </div>
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon" style="border-style: dashed; animation: emptyPulse 2s ease-in-out infinite;">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+        </svg>
+    </div>
+    <h2>No tracks yet -- let's fix that!</h2>
+    <p>Search for songs you love and add them here. We'll analyze their audio DNA to find your next favorites.</p>
+    <a href="/" class="btn btn-primary btn-large">
+        <i class="fa-solid fa-search"></i> Find Your First Track
+    </a>
+</div>
+<style>
+@keyframes emptyPulse {
+    0%, 100% { opacity: 0.7; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.05); }
+}
+</style>
+{% endif %}
+
+<div class="info-box">
+    <h3><i class="fa-solid fa-lightbulb"></i> How Recommendations Work</h3>
+    <p>
+        NextTrack uses <strong>content-based filtering</strong> combined with <strong>external data enhancements</strong>.
+        Each track has audio features (energy, valence, danceability, acousticness, tempo) forming a
+        5-dimensional vector. We compute the <strong>centroid</strong> of your playlist to represent your taste.
+    </p>
+    <p>
+        <strong>External data actively boosts recommendations:</strong>
+    </p>
+    <ul style="margin: 0.5rem 0 0.5rem 1.5rem; color: var(--text-muted); line-height: 1.6; font-size: 0.9rem;">
+        <li><strong>Influence Chains</strong> - Artists who influenced your playlist artists get a 15% boost (via Wikidata P737)</li>
+        <li><strong>Similar Artists</strong> - Collaboratively-filtered similar artists get a 20% boost (via Last.fm)</li>
+        <li><strong>Tag Matching</strong> - Genre/mood tag matches provide an 8% boost</li>
+    </ul>
+    <p>
+        Artist metadata from <strong>MusicBrainz</strong> (country, type, decade) enables filtering.
+        Your feedback (likes/dislikes) teaches categorical preferences for future recommendations.
+    </p>
+    <p>
+        <strong>No account required</strong> - playlist stored in browser session (7 days).
+        All external data cached in Redis (24-hour TTL) - no database storage.
+    </p>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Toast container for builder page -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+(function() {
+    // Get Recommendations button - loading overlay
+    var recsLink = document.getElementById('builder-get-recs');
+    if (recsLink) {
+        recsLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            window.NextTrackLoadingOverlay.navigate();
+        });
+    }
+
+    var clearBtn = document.getElementById('clear-btn');
+    var clearModal = document.getElementById('clear-modal');
+    var clearCancel = document.getElementById('clear-cancel');
+    var clearConfirm = document.getElementById('clear-confirm');
+    var clearForm = document.getElementById('clear-form');
+
+    // Only setup if elements exist (playlist has tracks)
+    if (!clearBtn || !clearModal) return;
+
+    var _clearFocusTrapCleanup = null;
+
+    function showModal() {
+        clearModal.classList.add('active');
+        // Apply focus trap
+        if (window.trapFocus) {
+            _clearFocusTrapCleanup = window.trapFocus(clearModal);
+        }
+        // Focus the cancel button
+        if (clearCancel) clearCancel.focus();
+    }
+
+    function hideModal() {
+        clearModal.classList.remove('active');
+        // Remove focus trap
+        if (_clearFocusTrapCleanup) {
+            _clearFocusTrapCleanup();
+            _clearFocusTrapCleanup = null;
+        }
+        // Return focus to trigger button
+        if (clearBtn) clearBtn.focus();
+    }
+
+    // Show modal when Clear All button is clicked
+    clearBtn.addEventListener('click', showModal);
+
+    // Hide modal on Cancel
+    clearCancel.addEventListener('click', hideModal);
+
+    // Submit form on Confirm
+    clearConfirm.addEventListener('click', function() {
+        clearForm.submit();
+    });
+
+    // Close modal on overlay click
+    clearModal.addEventListener('click', function(e) {
+        if (e.target === clearModal) {
+            hideModal();
+        }
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && clearModal.classList.contains('active')) {
+            hideModal();
+        }
+    });
+
+    // ============================
+    // Taste Preview: Compute Centroid
+    // ============================
+    function fetchCentroidPreview() {
+        var items = document.querySelectorAll('.playlist-item-with-player[data-track-id]');
+        var trackIds = Array.from(items).map(function(el) { return el.dataset.trackId; });
+        if (trackIds.length === 0) return;
+
+        var csrfToken = window.getCsrfToken ? window.getCsrfToken() : '';
+        fetch('/api/centroid-preview/', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({ track_ids: trackIds })
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            if (data.energy !== undefined) {
+                updateTasteBar('energy', data.energy);
+                updateTasteBar('valence', data.valence);
+                updateTasteBar('dance', data.danceability);
+                updateTasteBar('acoustic', data.acousticness);
+                // Tempo: normalize to 0-1 range (assume max ~200 BPM)
+                var tempoNorm = Math.min(data.tempo / 200, 1);
+                var tempoBar = document.getElementById('tp-tempo');
+                var tempoVal = document.getElementById('tp-tempo-val');
+                if (tempoBar) tempoBar.style.width = (tempoNorm * 100) + '%';
+                if (tempoVal) tempoVal.textContent = Math.round(data.tempo) + ' BPM';
+            }
+        })
+        .catch(function() {});
+    }
+
+    function updateTasteBar(name, value) {
+        var bar = document.getElementById('tp-' + name);
+        var val = document.getElementById('tp-' + name + '-val');
+        if (bar) bar.style.width = (value * 100) + '%';
+        if (val) val.textContent = value.toFixed(2);
+    }
+
+    // Fetch on load
+    fetchCentroidPreview();
+
+    // ============================
+    // Drag-and-Drop Playlist Reordering
+    // ============================
+    (function() {
+        var container = document.getElementById('playlist-tracks');
+        if (!container) return;
+        var draggedItem = null;
+
+        container.addEventListener('dragstart', function(e) {
+            var item = e.target.closest('.playlist-item-with-player');
+            if (!item) return;
+            draggedItem = item;
+            item.classList.add('dragging');
+            item.setAttribute('aria-grabbed', 'true');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', item.dataset.trackId);
+        });
+
+        container.addEventListener('dragend', function(e) {
+            var item = e.target.closest('.playlist-item-with-player');
+            if (item) {
+                item.classList.remove('dragging');
+                item.setAttribute('aria-grabbed', 'false');
+            }
+            // Remove all drag-over indicators
+            container.querySelectorAll('.drag-over').forEach(function(el) {
+                el.classList.remove('drag-over');
+            });
+            draggedItem = null;
+        });
+
+        container.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            var target = e.target.closest('.playlist-item-with-player');
+            if (target && target !== draggedItem) {
+                // Remove old drag-over
+                container.querySelectorAll('.drag-over').forEach(function(el) {
+                    el.classList.remove('drag-over');
+                });
+                target.classList.add('drag-over');
+                target.setAttribute('aria-dropeffect', 'move');
+            }
+        });
+
+        container.addEventListener('dragleave', function(e) {
+            var target = e.target.closest('.playlist-item-with-player');
+            if (target) {
+                target.classList.remove('drag-over');
+                target.removeAttribute('aria-dropeffect');
+            }
+        });
+
+        container.addEventListener('drop', function(e) {
+            e.preventDefault();
+            var target = e.target.closest('.playlist-item-with-player');
+            if (!target || !draggedItem || target === draggedItem) return;
+
+            target.classList.remove('drag-over');
+            target.removeAttribute('aria-dropeffect');
+
+            // Reorder in DOM
+            var items = Array.from(container.querySelectorAll('.playlist-item-with-player'));
+            var draggedIndex = items.indexOf(draggedItem);
+            var targetIndex = items.indexOf(target);
+
+            if (draggedIndex < targetIndex) {
+                container.insertBefore(draggedItem, target.nextSibling);
+            } else {
+                container.insertBefore(draggedItem, target);
+            }
+
+            // Update track numbers
+            container.querySelectorAll('.playlist-item-with-player').forEach(function(item, idx) {
+                var num = item.querySelector('.track-number');
+                if (num) num.textContent = idx + 1;
+            });
+
+            // Submit new order to server
+            var newOrder = Array.from(container.querySelectorAll('.playlist-item-with-player'))
+                .map(function(el) { return el.dataset.trackId; });
+
+            var csrfToken = window.getCsrfToken ? window.getCsrfToken() : '';
+            fetch('/builder/', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                },
+                body: 'action=reorder&order=' + encodeURIComponent(JSON.stringify(newOrder)) + '&csrfmiddlewaretoken=' + encodeURIComponent(csrfToken)
+            }).catch(function() {});
+
+            // Re-fetch centroid after reorder
+            fetchCentroidPreview();
+        });
+    })();
+
+    // ============================
+    // Undo Track Removal (AJAX)
+    // ============================
+    var _undoTimer = null;
+    var _lastRemovedTrackId = null;
+
+    document.addEventListener('click', function(e) {
+        var removeBtn = e.target.closest('.btn-remove-ajax');
+        if (!removeBtn) return;
+
+        var trackId = removeBtn.dataset.trackId;
+        var trackTitle = removeBtn.dataset.trackTitle;
+        var trackArtist = removeBtn.dataset.trackArtist;
+        var playlistItem = removeBtn.closest('.playlist-item-with-player');
+
+        if (!trackId || !playlistItem) return;
+
+        // Remove the item visually
+        playlistItem.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        playlistItem.style.opacity = '0';
+        playlistItem.style.transform = 'translateX(-20px)';
+
+        setTimeout(function() {
+            playlistItem.style.display = 'none';
+        }, 300);
+
+        _lastRemovedTrackId = trackId;
+
+        // Show toast with undo button
+        var container = document.getElementById('toast-container');
+        if (!container) return;
+
+        // Clear any existing undo toast
+        var existingUndo = container.querySelector('.toast-undo');
+        if (existingUndo) existingUndo.remove();
+        if (_undoTimer) clearTimeout(_undoTimer);
+
+        var toast = document.createElement('div');
+        toast.className = 'toast success toast-undo';
+        toast.style.animation = 'slideInRight 0.3s ease';
+        toast.innerHTML =
+            '<i class="fa-solid fa-check-circle"></i>' +
+            '<span class="toast-message">Removed <strong>' + trackTitle + '</strong></span>' +
+            '<button type="button" class="btn btn-small btn-secondary toast-undo-btn" style="margin-left:0.5rem;white-space:nowrap;">Undo</button>';
+        container.appendChild(toast);
+
+        var undoBtn = toast.querySelector('.toast-undo-btn');
+        var undone = false;
+
+        undoBtn.addEventListener('click', function() {
+            if (undone) return;
+            undone = true;
+            // Re-add the track via AJAX
+            if (window.addToPlaylist) {
+                // Re-show the item
+                playlistItem.style.display = '';
+                playlistItem.style.opacity = '1';
+                playlistItem.style.transform = '';
+            } else {
+                // Fallback: reload
+                window.location.reload();
+            }
+            // Re-add via fetch
+            var csrfToken = window.getCsrfToken ? window.getCsrfToken() : '';
+            fetch('/ajax/add-track/', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify({ track_id: trackId, force_add: true })
+            }).then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                if (data.count !== undefined) {
+                    window.updatePlaylistCount(data.count);
+                }
+            }).catch(function() {});
+            toast.remove();
+            if (_undoTimer) clearTimeout(_undoTimer);
+            _lastRemovedTrackId = null;
+        });
+
+        // After 5 seconds, actually perform the removal
+        _undoTimer = setTimeout(function() {
+            if (undone) return;
+            toast.style.animation = 'fadeOut 0.3s ease forwards';
+            setTimeout(function() { toast.remove(); }, 300);
+
+            // Perform actual AJAX removal
+            var csrfToken = window.getCsrfToken ? window.getCsrfToken() : '';
+            fetch('/builder/', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                },
+                body: 'action=remove&track_id=' + encodeURIComponent(trackId) + '&csrfmiddlewaretoken=' + encodeURIComponent(csrfToken)
+            }).then(function() {
+                // Update playlist count
+                var badge = document.querySelector('.playlist-count');
+                if (badge) {
+                    var current = parseInt(badge.textContent) || 0;
+                    if (current > 0) {
+                        window.updatePlaylistCount(current - 1);
+                    }
+                }
+                // Update header count text
+                var headerSpan = document.querySelector('.playlist-header span');
+                if (headerSpan && badge) {
+                    var newCount = parseInt(badge.textContent) || 0;
+                    headerSpan.textContent = newCount + ' track' + (newCount !== 1 ? 's' : '') + ' in your playlist';
+                }
+            }).catch(function() {});
+            _lastRemovedTrackId = null;
+        }, 5000);
+    });
+})();
+
+</script>
+{% endblock %}

@@ -1,0 +1,230 @@
+/**
+ * NextTrack Help Tooltips
+ *
+ * Contextual help tooltips for features throughout the app
+ */
+
+/* Tooltip Container */
+[data-tooltip] {
+    position: relative;
+}
+
+/* Tooltip Bubble */
+[data-tooltip]::before,
+[data-tooltip]::after {
+    position: absolute;
+    z-index: 10000;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: all 0.2s ease;
+}
+
+/* Tooltip Arrow */
+[data-tooltip]::before {
+    content: '';
+    width: 0;
+    height: 0;
+    border: 6px solid transparent;
+}
+
+/* Tooltip Text */
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    background: var(--bg-card, #181818);
+    color: var(--text-color, #fff);
+    font-size: 0.8rem;
+    font-weight: 500;
+    line-height: 1.4;
+    padding: 0.6rem 0.9rem;
+    border-radius: 8px;
+    border: 1px solid var(--border-color, #282828);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    white-space: nowrap;
+    max-width: 280px;
+}
+
+/* Show on hover/focus */
+[data-tooltip]:hover::before,
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::before,
+[data-tooltip]:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Position: Top (default) */
+[data-tooltip]:not([data-tooltip-position])::before,
+[data-tooltip][data-tooltip-position="top"]::before {
+    bottom: 100%;
+    left: 50%;
+    margin-left: -6px;
+    margin-bottom: -6px;
+    border-top-color: var(--bg-card, #181818);
+}
+
+[data-tooltip]:not([data-tooltip-position])::after,
+[data-tooltip][data-tooltip-position="top"]::after {
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 6px;
+}
+
+[data-tooltip]:not([data-tooltip-position]):hover::after,
+[data-tooltip][data-tooltip-position="top"]:hover::after {
+    transform: translateX(-50%) translateY(-4px);
+}
+
+/* Position: Bottom */
+[data-tooltip][data-tooltip-position="bottom"]::before {
+    top: 100%;
+    left: 50%;
+    margin-left: -6px;
+    margin-top: -6px;
+    border-bottom-color: var(--bg-card, #181818);
+}
+
+[data-tooltip][data-tooltip-position="bottom"]::after {
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 6px;
+}
+
+[data-tooltip][data-tooltip-position="bottom"]:hover::after {
+    transform: translateX(-50%) translateY(4px);
+}
+
+/* Position: Left */
+[data-tooltip][data-tooltip-position="left"]::before {
+    top: 50%;
+    right: 100%;
+    margin-top: -6px;
+    margin-right: -6px;
+    border-left-color: var(--bg-card, #181818);
+}
+
+[data-tooltip][data-tooltip-position="left"]::after {
+    top: 50%;
+    right: 100%;
+    transform: translateY(-50%);
+    margin-right: 6px;
+}
+
+[data-tooltip][data-tooltip-position="left"]:hover::after {
+    transform: translateY(-50%) translateX(-4px);
+}
+
+/* Position: Right */
+[data-tooltip][data-tooltip-position="right"]::before {
+    top: 50%;
+    left: 100%;
+    margin-top: -6px;
+    margin-left: -6px;
+    border-right-color: var(--bg-card, #181818);
+}
+
+[data-tooltip][data-tooltip-position="right"]::after {
+    top: 50%;
+    left: 100%;
+    transform: translateY(-50%);
+    margin-left: 6px;
+}
+
+[data-tooltip][data-tooltip-position="right"]:hover::after {
+    transform: translateY(-50%) translateX(4px);
+}
+
+/* Help Icon */
+.help-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    font-size: 0.7rem;
+    background: var(--bg-secondary, #282828);
+    color: var(--text-muted, #b3b3b3);
+    border-radius: 50%;
+    cursor: help;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+}
+
+.help-icon:hover,
+.help-icon:focus-visible {
+    background: var(--primary-color, #1DB954);
+    color: var(--secondary-color, #191414);
+    border-color: var(--primary-color, #1DB954);
+}
+
+/* Larger help icon variant */
+.help-icon-lg {
+    width: 24px;
+    height: 24px;
+    font-size: 0.85rem;
+}
+
+/* Feature Card Tooltips */
+.feature-info {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+}
+
+/* Audio Feature Bars with tooltips */
+.audio-feature-bar {
+    position: relative;
+}
+
+/* Multi-line tooltip support */
+[data-tooltip-multiline]::after {
+    white-space: normal;
+    text-align: left;
+    min-width: 200px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    [data-tooltip]::after {
+        font-size: 0.75rem;
+        max-width: 200px;
+    }
+
+    /* Convert left/right to top on mobile */
+    [data-tooltip][data-tooltip-position="left"]::before,
+    [data-tooltip][data-tooltip-position="right"]::before {
+        top: auto;
+        right: auto;
+        left: 50%;
+        bottom: 100%;
+        margin: 0;
+        margin-left: -6px;
+        margin-bottom: -6px;
+        border: 6px solid transparent;
+        border-top-color: var(--bg-card, #181818);
+    }
+
+    [data-tooltip][data-tooltip-position="left"]::after,
+    [data-tooltip][data-tooltip-position="right"]::after {
+        top: auto;
+        right: auto;
+        left: 50%;
+        bottom: 100%;
+        margin: 0;
+        margin-bottom: 6px;
+        transform: translateX(-50%);
+    }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    [data-tooltip]::before,
+    [data-tooltip]::after,
+    .help-icon {
+        transition: none;
+    }
+}

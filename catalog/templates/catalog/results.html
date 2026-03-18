@@ -1,0 +1,2815 @@
+{% extends 'catalog/base.html' %}
+{% load catalog_extras %}
+
+{% block title %}Your Recommendations{% endblock %}
+
+{% block meta_description %}Your personalized music recommendations based on audio feature analysis. Discover tracks that match your taste using AI-powered content-based filtering.{% endblock %}
+
+{% block extra_head %}
+<!-- Chart.js CDN for radar visualization -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+
+<!-- JSON-LD Structured Data: MusicPlaylist with MusicRecording items -->
+{% if recommendations %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "MusicPlaylist",
+  "name": "NextTrack Personalized Recommendations",
+  "description": "AI-generated music recommendations based on audio feature analysis",
+  "numTracks": {{ recommendations|length }},
+  "track": [
+    {% for track in recommendations %}
+    {
+      "@type": "MusicRecording",
+      "name": "{{ track.title|escapejs }}",
+      "byArtist": {
+        "@type": "MusicGroup",
+        "name": "{{ track.artist.name|escapejs }}"
+      },
+      "url": "https://open.spotify.com/track/{{ track.id }}"{% if track.genres.all %},
+      "genre": [{% for genre in track.genres.all|slice:":3" %}"{{ genre.name|escapejs }}"{% if not forloop.last %}, {% endif %}{% endfor %}]{% endif %},
+      "position": {{ forloop.counter }}
+    }{% if not forloop.last %},{% endif %}
+    {% endfor %}
+  ]
+}
+</script>
+{% endif %}
+<style>
+    .alert {
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .alert-info {
+        background: rgba(29, 185, 84, 0.15);
+        border: 1px solid var(--primary-color);
+        color: var(--text-color);
+    }
+    .alert-info i {
+        color: var(--primary-color);
+        font-size: 1.2rem;
+    }
+
+    .vibe-comparison {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 2rem;
+        margin: 2rem 0;
+    }
+    .vibe-comparison h2 {
+        text-align: center;
+        margin-bottom: 1.5rem;
+        color: var(--text-color);
+    }
+    .chart-container {
+        max-width: 450px;
+        margin: 0 auto;
+        position: relative;
+        overflow-x: auto;
+    }
+    .chart-legend {
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        margin-top: 1.5rem;
+        font-size: 0.9rem;
+    }
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .legend-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+    }
+    .legend-input { background: rgba(29, 185, 84, 0.8); }
+    .legend-result { background: rgba(255, 99, 132, 0.8); }
+
+    /* Spotify Embed Styling */
+    .spotify-embed {
+        margin: 1rem 0;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .spotify-embed iframe {
+        border: none;
+        border-radius: 12px;
+    }
+
+    /* Feedback Buttons - Professional Circular Design */
+    .feedback-section {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border-color);
+        justify-content: center;
+    }
+    .btn-feedback {
+        background: transparent;
+        border: 2px solid var(--border-color);
+        color: var(--text-muted);
+        border-radius: 50%;
+        width: 44px;
+        height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 1.1rem;
+        transition: all 0.3s ease;
+    }
+    .btn-feedback:hover {
+        border-color: var(--text-color);
+        color: var(--text-color);
+        transform: scale(1.1);
+    }
+    .btn-like:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+    .btn-dislike:hover {
+        border-color: var(--danger-color);
+        color: var(--danger-color);
+    }
+    .btn-feedback.active {
+        background: var(--primary-color);
+        border-color: var(--primary-color);
+        color: var(--secondary-color);
+    }
+    .btn-feedback.active-dislike {
+        background: var(--danger-color);
+        border-color: var(--danger-color);
+        color: white;
+    }
+    .btn-feedback:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+    }
+    .feedback-thanks {
+        text-align: center;
+        color: var(--primary-color);
+        font-size: 0.9rem;
+        padding: 0.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    /* Toast, modal, genre-tag, btn-add, unanalyzed-warning styles are in components.css */
+
+    /* Spotify Open Link Button */
+    .btn-spotify-open {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: #1db954;
+        color: white;
+        padding: 0.4rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        text-decoration: none;
+        margin-top: 0.5rem;
+        transition: all 0.2s ease;
+    }
+    .btn-spotify-open:hover {
+        background: #1ed760;
+        transform: scale(1.02);
+    }
+    .btn-spotify-open i {
+        font-size: 0.7rem;
+    }
+
+    /* Recommendations Header with Export Button */
+    .recommendations-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .recommendations-header h2 {
+        margin: 0;
+    }
+    .btn-spotify-export {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #1db954;
+        color: var(--secondary-color, #191414);
+        padding: 0.75rem 1.25rem;
+        border-radius: 50px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .btn-spotify-export:hover {
+        background: #1ed760;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(29, 185, 84, 0.4);
+    }
+    .btn-spotify-export:disabled {
+        background: var(--border-color, #333);
+        color: var(--text-muted, #888);
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+    }
+    .btn-spotify-export i {
+        font-size: 1.1rem;
+    }
+    @media (max-width: 480px) {
+        .btn-spotify-export span {
+            display: none;
+        }
+        .btn-spotify-export {
+            padding: 0.75rem;
+            border-radius: 50%;
+        }
+    }
+
+    /* Algorithm explanation */
+    .algorithm-info {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 1.25rem;
+        margin-bottom: 2rem;
+        border-left: 3px solid var(--primary-color);
+    }
+    .algorithm-info p {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        margin: 0;
+        line-height: 1.6;
+    }
+    .algorithm-info strong {
+        color: var(--text-color);
+    }
+    /* Filter Section Styles - Enhanced */
+    .filters-section {
+        background: linear-gradient(135deg, rgba(29, 185, 84, 0.05), rgba(29, 185, 84, 0.02));
+        border-radius: 16px;
+        padding: 1.75rem;
+        margin-bottom: 2rem;
+        border: 1px solid rgba(29, 185, 84, 0.2);
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+    .filters-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.25rem;
+        cursor: pointer;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .filters-header h3 {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        margin: 0;
+        font-size: 1.1rem;
+        color: var(--text-color);
+    }
+    .filters-header h3 i {
+        color: var(--primary-color);
+    }
+    .filters-toggle {
+        color: var(--text-muted);
+        transition: transform 0.3s ease;
+        font-size: 0.9rem;
+    }
+    .filters-toggle.expanded {
+        transform: rotate(180deg);
+    }
+    .filters-content {
+        display: block; /* Expanded by default */
+    }
+    .filters-content.collapsed {
+        display: none;
+    }
+    .filter-group {
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .filter-group:last-child {
+        margin-bottom: 0;
+    }
+    .filter-label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-color);
+        margin-bottom: 0.75rem;
+    }
+    .filter-label i {
+        color: var(--primary-color);
+        font-size: 0.85rem;
+    }
+    .filter-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+    }
+    .filter-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.5rem 1rem;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 24px;
+        font-size: 0.85rem;
+        color: var(--text-color);
+        cursor: pointer;
+        transition: all 0.25s ease;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    .filter-chip:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+        background: rgba(29, 185, 84, 0.1);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(29, 185, 84, 0.2);
+    }
+    .filter-chip.active {
+        background: var(--primary-color);
+        border-color: var(--primary-color);
+        color: var(--secondary-color);
+    }
+    .filter-chip .count {
+        font-size: 0.75rem;
+        opacity: 0.7;
+        font-weight: 400;
+    }
+
+    /* Active Filters Bar */
+    .active-filters-bar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        padding: 0.75rem 1rem;
+        background: rgba(29, 185, 84, 0.1);
+        border: 1px solid rgba(29, 185, 84, 0.3);
+        border-radius: 8px;
+    }
+    .active-filters-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-right: 0.5rem;
+    }
+    .active-filter-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.3rem 0.6rem;
+        background: var(--primary-color);
+        border-radius: 4px;
+        font-size: 0.8rem;
+        color: var(--secondary-color);
+    }
+    .active-filter-remove {
+        cursor: pointer;
+        opacity: 0.8;
+        margin-left: 0.25rem;
+    }
+    .active-filter-remove:hover {
+        opacity: 1;
+    }
+    .clear-all-filters {
+        font-size: 0.8rem;
+        color: var(--danger-color);
+        cursor: pointer;
+        margin-left: auto;
+    }
+    .clear-all-filters:hover {
+        text-decoration: underline;
+    }
+
+    /* Diversity Stats Section */
+    .diversity-section {
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        border: 1px solid var(--border-color);
+    }
+    .diversity-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .diversity-header h3 {
+        margin: 0;
+        font-size: 1rem;
+        color: var(--text-color);
+    }
+    .diversity-score {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: var(--bg-card);
+        border-radius: 8px;
+    }
+    .score-circle {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.1rem;
+    }
+    .score-low { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+    .score-medium { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .score-high { background: rgba(29, 185, 84, 0.2); color: var(--primary-color); }
+    .score-info {
+        flex: 1;
+    }
+    .score-title {
+        font-weight: 600;
+        color: var(--text-color);
+        font-size: 0.9rem;
+    }
+    .score-desc {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+    }
+    .diversity-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1rem;
+    }
+    .stat-mini-card {
+        background: var(--bg-card);
+        border-radius: 8px;
+        padding: 1rem;
+    }
+    .stat-mini-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 0.5rem;
+    }
+    .stat-mini-list {
+        font-size: 0.85rem;
+        color: var(--text-color);
+    }
+    .stat-mini-list span {
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+
+    /* Genre Tags in Recommendations - .genre-tag base styles in components.css */
+    .track-genres {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        margin: 0.5rem 0;
+    }
+
+    /* Artist Info Card - External Data */
+    .artist-info-card {
+        margin: 0.75rem 0;
+        padding: 0.75rem;
+        background: rgba(59, 130, 246, 0.08);
+        border-radius: 8px;
+        border-left: 3px solid #3b82f6;
+    }
+    .artist-info-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #3b82f6;
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .artist-info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+        gap: 0.5rem;
+    }
+    .artist-info-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+    }
+    .artist-info-label {
+        font-size: 0.65rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .artist-info-value {
+        font-size: 0.8rem;
+        color: var(--text-color);
+        font-weight: 500;
+    }
+    .artist-info-value i {
+        margin-right: 0.25rem;
+        color: #3b82f6;
+        font-size: 0.7rem;
+    }
+    .artist-description {
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        font-style: italic;
+        line-height: 1.4;
+    }
+    .artist-links {
+        margin-top: 0.5rem;
+        display: flex;
+        gap: 0.5rem;
+    }
+    .artist-link {
+        font-size: 0.7rem;
+        color: #3b82f6;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    .artist-link:hover {
+        text-decoration: underline;
+    }
+    .enrichment-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.65rem;
+        padding: 0.15rem 0.4rem;
+        border-radius: 10px;
+        margin-left: 0.5rem;
+    }
+    .enrichment-badge.enriched {
+        background: rgba(29, 185, 84, 0.15);
+        color: var(--primary-color);
+    }
+    .enrichment-badge.pending {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+    }
+    .external-tags {
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .external-tags-label {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        margin-right: 0.5rem;
+    }
+    .external-tags-label i {
+        color: #a855f7;
+    }
+    .external-tag {
+        display: inline-block;
+        background: rgba(168, 85, 247, 0.15);
+        color: #a855f7;
+        padding: 0.15rem 0.4rem;
+        border-radius: 10px;
+        font-size: 0.65rem;
+        margin: 0.15rem 0.1rem;
+        border: 1px solid rgba(168, 85, 247, 0.3);
+    }
+    /* New external data styles */
+    .data-sources-badge {
+        margin-left: auto;
+        font-size: 0.6rem;
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+        padding: 0.15rem 0.4rem;
+        border-radius: 8px;
+        cursor: help;
+    }
+    .influence-tag {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+        border-color: rgba(245, 158, 11, 0.3);
+    }
+    .similar-tag {
+        background: rgba(34, 197, 94, 0.15);
+        color: #22c55e;
+        border-color: rgba(34, 197, 94, 0.3);
+    }
+    .lastfm-tag {
+        background: rgba(239, 68, 68, 0.12);
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.25);
+    }
+    .influenced-by .external-tags-label i,
+    .similar-artists .external-tags-label i,
+    .lastfm-tags .external-tags-label i {
+        color: inherit;
+    }
+    .influenced-by .external-tags-label i { color: #f59e0b; }
+    .similar-artists .external-tags-label i { color: #22c55e; }
+    .lastfm-tags .external-tags-label i { color: #ef4444; }
+    .genius-link {
+        margin-top: 0.5rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .genius-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        background: rgba(255, 255, 85, 0.12);
+        color: #ffff55;
+        padding: 0.3rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        text-decoration: none;
+        transition: background 0.2s ease;
+    }
+    .genius-btn:hover {
+        background: rgba(255, 255, 85, 0.2);
+    }
+
+    /* External Data Enhancement Indicator */
+    .external-enhancement-indicator {
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(147, 51, 234, 0.1));
+        border: 1px solid rgba(59, 130, 246, 0.3);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1rem;
+    }
+    .enhancement-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--text-color);
+        margin-bottom: 0.5rem;
+    }
+    .enhancement-header i {
+        color: #3b82f6;
+    }
+    .enhancement-details {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+    .enhancement-source {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+    .enhancement-source i {
+        color: #a855f7;
+    }
+
+    /* Influence Suggestions */
+    .influence-suggestions {
+        background: rgba(245, 158, 11, 0.08);
+        border: 1px solid rgba(245, 158, 11, 0.25);
+        border-radius: 12px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1rem;
+    }
+    .suggestions-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.9rem;
+        color: var(--text-color);
+        margin-bottom: 0.75rem;
+    }
+    .suggestions-header i {
+        color: #f59e0b;
+    }
+    .suggestions-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .suggestion-tag {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+        padding: 0.3rem 0.75rem;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    /* Per-track Enhancement Badges */
+    .external-enhancement-badges {
+        background: rgba(59, 130, 246, 0.08);
+        border-radius: 8px;
+        padding: 0.6rem 0.75rem;
+        margin-top: 0.75rem;
+        border: 1px solid rgba(59, 130, 246, 0.2);
+    }
+    .enhancement-badge-header {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #3b82f6;
+        margin-bottom: 0.4rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .enhancement-badge-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+    .enhancement-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        font-size: 0.65rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 10px;
+    }
+    .enhancement-badge.similar-boost {
+        background: rgba(34, 197, 94, 0.15);
+        color: #22c55e;
+        border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    .enhancement-badge.influence-boost {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+        border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    .enhancement-badge.tag-boost {
+        background: rgba(239, 68, 68, 0.12);
+        color: #ef4444;
+        border: 1px solid rgba(239, 68, 68, 0.25);
+        cursor: help;
+    }
+
+    /* Explanation Card Styles */
+    .track-explanation {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        background: rgba(29, 185, 84, 0.08);
+        border-radius: 8px;
+        border-left: 3px solid var(--primary-color);
+    }
+    .explanation-header {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--primary-color);
+        margin-bottom: 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .explanation-reasons {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+    .explanation-reason {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.4rem;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        line-height: 1.4;
+    }
+    .explanation-reason i {
+        color: var(--primary-color);
+        font-size: 0.7rem;
+        margin-top: 0.2rem;
+        flex-shrink: 0;
+    }
+    .similarity-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.25rem 0.5rem;
+        background: var(--bg-secondary);
+        border-radius: 4px;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.5rem;
+    }
+    .similarity-badge.high { color: var(--primary-color); }
+    .similarity-badge.medium { color: #f59e0b; }
+    .similarity-badge.low { color: #ef4444; }
+
+    /* Feedback Applied Indicator */
+    .feedback-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        background: rgba(29, 185, 84, 0.1);
+        border: 1px solid rgba(29, 185, 84, 0.3);
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        font-size: 0.9rem;
+        color: var(--text-color);
+    }
+    .feedback-indicator i {
+        color: var(--primary-color);
+    }
+
+    /* Categorical Learning Indicator */
+    .categorical-learning {
+        background: rgba(139, 92, 246, 0.1);
+        border: 1px solid rgba(139, 92, 246, 0.3);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    .categorical-learning-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+        font-weight: 600;
+        color: var(--text-color);
+    }
+    .categorical-learning-header i {
+        color: #8b5cf6;
+    }
+    .categorical-learning-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.75rem;
+    }
+    .pref-category {
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 6px;
+        padding: 0.6rem 0.8rem;
+    }
+    .pref-category-title {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 0.4rem;
+    }
+    .pref-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+    }
+    .pref-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+    }
+    .pref-tag.liked {
+        background: rgba(34, 197, 94, 0.2);
+        color: #22c55e;
+    }
+    .pref-tag.disliked {
+        background: rgba(239, 68, 68, 0.2);
+        color: #ef4444;
+    }
+    .pref-tag i {
+        font-size: 0.6rem;
+    }
+
+    /* Track adjustment badges */
+    .track-adjustments {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        margin-top: 0.5rem;
+    }
+    .adjustment-badge {
+        font-size: 0.65rem;
+        padding: 0.15rem 0.4rem;
+        border-radius: 3px;
+    }
+    .adjustment-badge.boost {
+        background: rgba(34, 197, 94, 0.15);
+        color: #22c55e;
+    }
+    .adjustment-badge.penalty {
+        background: rgba(239, 68, 68, 0.15);
+        color: #ef4444;
+    }
+
+    /* Per-track categorical adjustments */
+    .categorical-adjustments {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 0.75rem;
+        margin-top: 0.75rem;
+        border: 1px solid var(--border-color);
+    }
+    .adjustment-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-bottom: 0.5rem;
+    }
+    .adjustment-header i {
+        color: var(--primary-color);
+    }
+    .adjustment-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    /* Survey Modal Styles */
+    .survey-container {
+        max-width: 500px;
+    }
+    .survey-container .modal-header {
+        position: relative;
+    }
+    .survey-container .modal-close {
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0.5rem;
+        font-size: 1.1rem;
+        transition: color 0.2s;
+    }
+    .survey-container .modal-close:hover {
+        color: var(--text-color);
+    }
+    .survey-intro {
+        color: var(--text-muted);
+        margin-bottom: 1.5rem;
+        font-size: 0.9rem;
+    }
+    .survey-question {
+        margin-bottom: 1.25rem;
+    }
+    .survey-question label {
+        display: block;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        color: var(--text-color);
+        font-size: 0.9rem;
+    }
+    .survey-question .optional {
+        color: var(--text-muted);
+        font-weight: 400;
+        font-size: 0.8rem;
+    }
+    .rating-group {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .rating-btn {
+        background: var(--bg-secondary);
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        padding: 0.6rem 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: var(--text-muted);
+        font-size: 1.3rem;
+    }
+    .rating-btn.text-btn {
+        font-size: 0.8rem;
+        padding: 0.5rem 0.75rem;
+    }
+    .rating-btn:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+        transform: translateY(-2px);
+    }
+    .rating-btn.selected {
+        background: var(--primary-color);
+        border-color: var(--primary-color);
+        color: var(--secondary-color);
+    }
+    .survey-question textarea {
+        width: 100%;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 0.75rem;
+        color: var(--text-color);
+        font-family: inherit;
+        font-size: 0.9rem;
+        resize: vertical;
+        transition: border-color 0.2s;
+    }
+    .survey-question textarea:focus {
+        outline: none;
+        border-color: var(--primary-color);
+    }
+    .survey-question textarea::placeholder {
+        color: var(--text-muted);
+    }
+    .toggle-group {
+        display: flex;
+        gap: 0.75rem;
+    }
+    .toggle-btn {
+        background: var(--bg-secondary);
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        padding: 0.6rem 1.25rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .toggle-btn:hover {
+        border-color: var(--primary-color);
+    }
+    .toggle-btn.active {
+        background: var(--primary-color);
+        border-color: var(--primary-color);
+        color: var(--secondary-color);
+    }
+    .recommend-question {
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--border-color);
+    }
+    /* Fieldset reset for accessibility */
+    .survey-question fieldset,
+    fieldset.survey-question {
+        border: none;
+        padding: 0;
+        margin: 0 0 1.25rem 0;
+    }
+    .survey-question legend {
+        display: block;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        color: var(--text-color);
+        font-size: 0.9rem;
+        padding: 0;
+    }
+    /* Screen reader only */
+    .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+    #survey-submit i {
+        margin-right: 0.3rem;
+    }
+
+    /* Mood Preset Buttons */
+    .mood-presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1.25rem;
+        align-items: center;
+    }
+    .mood-label {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        margin-right: 0.5rem;
+    }
+    .mood-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.5rem 1rem;
+        background: var(--bg-secondary);
+        border: 2px solid var(--border-color);
+        border-radius: 20px;
+        color: var(--text-color);
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .mood-btn:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+        transform: translateY(-2px);
+    }
+    .mood-btn.active {
+        background: var(--primary-color);
+        border-color: var(--primary-color);
+        color: var(--secondary-color);
+    }
+    .mood-btn.mood-reset {
+        background: transparent;
+        border-color: var(--text-muted);
+        color: var(--text-muted);
+    }
+    .mood-btn.mood-reset:hover {
+        border-color: var(--danger-color);
+        color: var(--danger-color);
+    }
+    .mood-btn i {
+        font-size: 0.9rem;
+    }
+    .survey-success {
+        text-align: center;
+        padding: 2rem 1rem;
+    }
+    .survey-success i {
+        font-size: 3rem;
+        color: var(--primary-color);
+        margin-bottom: 1rem;
+    }
+    .survey-success h4 {
+        color: var(--text-color);
+        margin-bottom: 0.5rem;
+    }
+    .survey-success p {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+    }
+
+    /* Recommendation Ranking Visuals - gradient left-border by rank */
+    .recommendation-card {
+        border-left: 4px solid rgba(29, 185, 84, calc(1 - var(--card-index, 0) * 0.09));
+    }
+    .rank-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 1.6rem;
+        height: 1.6rem;
+        font-weight: 800;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        flex-shrink: 0;
+    }
+    /* Top 3 ranks get colored background circles */
+    .rank-number.rank-top {
+        background: var(--primary-color);
+        color: var(--secondary-color);
+        border-radius: 50%;
+    }
+    /* Top 3 recommendation cards get a subtle glow */
+    .track-grid .recommendation-card:nth-child(1) {
+        border-color: rgba(29, 185, 84, 0.3);
+        box-shadow: 0 4px 20px rgba(29, 185, 84, 0.1);
+    }
+    .track-grid .recommendation-card:nth-child(2) {
+        border-color: rgba(29, 185, 84, 0.2);
+        box-shadow: 0 4px 16px rgba(29, 185, 84, 0.07);
+    }
+    .track-grid .recommendation-card:nth-child(3) {
+        border-color: rgba(29, 185, 84, 0.15);
+        box-shadow: 0 4px 12px rgba(29, 185, 84, 0.05);
+    }
+
+    /* Vibe comparison section enhancements */
+    .vibe-comparison {
+        background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(29, 185, 84, 0.03) 100%);
+        border: 1px solid var(--border-subtle);
+        box-shadow: var(--shadow-md);
+    }
+
+    /* Range Slider Styling */
+    .pref-input input[type="range"] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 100%;
+        height: 6px;
+        background: var(--bg-card);
+        border-radius: 3px;
+        outline: none;
+        cursor: pointer;
+        border: none;
+        padding: 0;
+    }
+    .pref-input input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        cursor: pointer;
+        box-shadow: 0 2px 6px rgba(29, 185, 84, 0.4);
+        transition: transform 0.15s ease;
+    }
+    .pref-input input[type="range"]::-webkit-slider-thumb:hover {
+        transform: scale(1.2);
+    }
+    .pref-input input[type="range"]::-moz-range-thumb {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--primary-color);
+        cursor: pointer;
+        border: none;
+        box-shadow: 0 2px 6px rgba(29, 185, 84, 0.4);
+    }
+    .pref-input input[type="range"]:focus-visible {
+        box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+    .pref-value {
+        color: var(--primary-color);
+        font-weight: 700;
+        font-size: 0.95rem;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Duplicate Song Confirmation Modal -->
+<div class="modal-overlay" id="duplicate-modal">
+    <div class="modal-container">
+        <div class="modal-header">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            <h3>Song Already in Playlist</h3>
+        </div>
+        <div class="modal-body">
+            <span class="modal-track-name" id="modal-track-name"></span> is already in your playlist. Would you like to add it again?
+        </div>
+        <div class="modal-actions">
+            <button class="modal-btn modal-btn-cancel" id="modal-cancel">No, Cancel</button>
+            <button class="modal-btn modal-btn-confirm" id="modal-confirm">Yes, Add Anyway</button>
+        </div>
+    </div>
+</div>
+
+<!-- User Experience Survey Modal -->
+<div class="modal-overlay" id="survey-modal" role="dialog" aria-modal="true" aria-labelledby="survey-title" aria-describedby="survey-intro">
+    <div class="modal-container survey-container">
+        <div class="modal-header">
+            <i class="fa-solid fa-clipboard-question" aria-hidden="true"></i>
+            <h3 id="survey-title">Help Us Improve!</h3>
+            <button class="modal-close" id="survey-close" aria-label="Close survey dialog">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p class="survey-intro" id="survey-intro">You've explored several recommendations. We'd love your feedback to make NextTrack even better!</p>
+
+            <form id="survey-form" aria-label="User feedback survey">
+                {% csrf_token %}
+
+                <fieldset class="survey-question">
+                    <legend>How satisfied are you with the recommendations?</legend>
+                    <div class="rating-group" data-field="satisfaction" role="radiogroup" aria-label="Satisfaction rating">
+                        <button type="button" class="rating-btn" data-value="1" role="radio" aria-checked="false" aria-label="Very Unsatisfied, 1 out of 5">
+                            <i class="fa-regular fa-face-angry" aria-hidden="true"></i>
+                            <span class="sr-only">Very Unsatisfied</span>
+                        </button>
+                        <button type="button" class="rating-btn" data-value="2" role="radio" aria-checked="false" aria-label="Unsatisfied, 2 out of 5">
+                            <i class="fa-regular fa-face-frown" aria-hidden="true"></i>
+                            <span class="sr-only">Unsatisfied</span>
+                        </button>
+                        <button type="button" class="rating-btn" data-value="3" role="radio" aria-checked="false" aria-label="Neutral, 3 out of 5">
+                            <i class="fa-regular fa-face-meh" aria-hidden="true"></i>
+                            <span class="sr-only">Neutral</span>
+                        </button>
+                        <button type="button" class="rating-btn" data-value="4" role="radio" aria-checked="false" aria-label="Satisfied, 4 out of 5">
+                            <i class="fa-regular fa-face-smile" aria-hidden="true"></i>
+                            <span class="sr-only">Satisfied</span>
+                        </button>
+                        <button type="button" class="rating-btn" data-value="5" role="radio" aria-checked="false" aria-label="Very Satisfied, 5 out of 5">
+                            <i class="fa-regular fa-face-grin-stars" aria-hidden="true"></i>
+                            <span class="sr-only">Very Satisfied</span>
+                        </button>
+                    </div>
+                    <input type="hidden" name="overall_satisfaction" id="satisfaction-value">
+                </fieldset>
+
+                <fieldset class="survey-question">
+                    <legend>How many new tracks did you discover?</legend>
+                    <div class="rating-group" data-field="discovery" role="radiogroup" aria-label="Discovery rating">
+                        <button type="button" class="rating-btn text-btn" data-value="1" role="radio" aria-checked="false">None</button>
+                        <button type="button" class="rating-btn text-btn" data-value="2" role="radio" aria-checked="false">A few</button>
+                        <button type="button" class="rating-btn text-btn" data-value="3" role="radio" aria-checked="false">Half</button>
+                        <button type="button" class="rating-btn text-btn" data-value="4" role="radio" aria-checked="false">Most</button>
+                        <button type="button" class="rating-btn text-btn" data-value="5" role="radio" aria-checked="false">All new!</button>
+                    </div>
+                    <input type="hidden" name="discovery_rating" id="discovery-value">
+                </fieldset>
+
+                <fieldset class="survey-question">
+                    <legend>How accurate were the recommendations to your taste?</legend>
+                    <div class="rating-group" data-field="accuracy" role="radiogroup" aria-label="Accuracy rating">
+                        <button type="button" class="rating-btn text-btn" data-value="1" role="radio" aria-checked="false">Not at all</button>
+                        <button type="button" class="rating-btn text-btn" data-value="2" role="radio" aria-checked="false">Slightly</button>
+                        <button type="button" class="rating-btn text-btn" data-value="3" role="radio" aria-checked="false">Moderate</button>
+                        <button type="button" class="rating-btn text-btn" data-value="4" role="radio" aria-checked="false">Very</button>
+                        <button type="button" class="rating-btn text-btn" data-value="5" role="radio" aria-checked="false">Spot on!</button>
+                    </div>
+                    <input type="hidden" name="accuracy_rating" id="accuracy-value">
+                </fieldset>
+
+                <div class="survey-question">
+                    <label for="liked-most">What did you like most? <span class="optional">(optional)</span></label>
+                    <textarea name="liked_most" id="liked-most" placeholder="e.g., Found great new artists, loved the variety..." rows="2" aria-describedby="liked-most-hint"></textarea>
+                    <span id="liked-most-hint" class="sr-only">Share what you enjoyed about the recommendations</span>
+                </div>
+
+                <div class="survey-question">
+                    <label for="improvement-suggestion">Any suggestions for improvement? <span class="optional">(optional)</span></label>
+                    <textarea name="improvement_suggestion" id="improvement-suggestion" placeholder="e.g., Would love more filters, genre options..." rows="2" aria-describedby="improvement-hint"></textarea>
+                    <span id="improvement-hint" class="sr-only">Help us improve by sharing your ideas</span>
+                </div>
+
+                <fieldset class="survey-question recommend-question">
+                    <legend>Would you recommend NextTrack to a friend?</legend>
+                    <div class="toggle-group" role="radiogroup" aria-label="Would recommend">
+                        <button type="button" class="toggle-btn active" data-value="true" role="radio" aria-checked="true">
+                            <i class="fa-solid fa-thumbs-up" aria-hidden="true"></i> Yes
+                        </button>
+                        <button type="button" class="toggle-btn" data-value="false" role="radio" aria-checked="false">
+                            <i class="fa-solid fa-thumbs-down" aria-hidden="true"></i> No
+                        </button>
+                    </div>
+                    <input type="hidden" name="would_recommend" id="recommend-value" value="true">
+                </fieldset>
+            </form>
+        </div>
+        <div class="modal-actions">
+            <button class="modal-btn modal-btn-cancel" id="survey-skip">Skip</button>
+            <button class="modal-btn modal-btn-confirm" id="survey-submit">
+                <i class="fa-solid fa-paper-plane"></i> Submit Feedback
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Notification Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<div class="page-header">
+    <h1>Your Personalized Recommendations</h1>
+    <p>Tracks selected using geometric similarity in audio feature space.</p>
+</div>
+
+{% if error %}
+<div class="error-box">
+    <p>{{ error }}</p>
+    <a href="/" class="btn btn-primary">Search for Tracks</a>
+</div>
+{% else %}
+
+<!-- Spotify Preview Notice -->
+<div class="alert alert-info">
+    <i class="fa-brands fa-spotify"></i>
+    <span>To hear full tracks, please log in to Spotify in another browser tab. Otherwise, 30-second previews will play.</span>
+</div>
+
+<!-- Feedback Applied Indicator -->
+{% if feedback_applied %}
+<div class="feedback-indicator">
+    <i class="fa-solid fa-brain"></i>
+    <span><strong>Learning from your feedback:</strong> Recommendations adjusted based on your likes and dislikes.</span>
+</div>
+{% endif %}
+
+<!-- Active Filters Bar -->
+{% if active_filters %}
+<div class="active-filters-bar">
+    <span class="active-filters-label"><i class="fa-solid fa-filter"></i> Active Filters:</span>
+    {% for filter in active_filters %}
+    <span class="active-filter-tag">
+        {{ filter.label }}
+        <a href="?{% for f in active_filters %}{% if f.type != filter.type %}{{ f.type }}={{ f.value }}&{% endif %}{% endfor %}" class="active-filter-remove" title="Remove filter">
+            <i class="fa-solid fa-xmark"></i>
+        </a>
+    </span>
+    {% endfor %}
+    <a href="/results/" class="clear-all-filters">Clear all</a>
+</div>
+{% endif %}
+
+<!-- Filters Section (collapsible) -->
+{% if available_filters.countries or available_filters.decades or available_filters.artist_types %}
+<div class="filters-section">
+    <div class="filters-header" id="filters-header">
+        <h3><i class="fa-solid fa-sliders"></i> Discovery Filters</h3>
+        <i class="fa-solid fa-chevron-down filters-toggle" id="filters-toggle"></i>
+    </div>
+    <div class="filters-content" id="filters-content">
+        {% if available_filters.regions %}
+        <div class="filter-group">
+            <span class="filter-label"><i class="fa-solid fa-globe"></i> Explore by Region</span>
+            <div class="filter-options">
+                {% for region in available_filters.regions|slice:":8" %}
+                <a href="?country={{ region.key }}" class="filter-chip">
+                    {{ region.name }} <span class="count">({{ region.count }})</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if available_filters.countries %}
+        <div class="filter-group">
+            <span class="filter-label"><i class="fa-solid fa-flag"></i> Filter by Country</span>
+            <div class="filter-options">
+                {% for country in available_filters.countries|slice:":12" %}
+                <a href="?country={{ country.code }}" class="filter-chip">
+                    {{ country.name }} <span class="count">({{ country.count }})</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if available_filters.decades %}
+        <div class="filter-group">
+            <span class="filter-label"><i class="fa-solid fa-clock-rotate-left"></i> Time Machine</span>
+            <div class="filter-options">
+                {% for decade in available_filters.decades %}
+                <a href="?decade={{ decade.decade }}" class="filter-chip">
+                    {{ decade.label }} <span class="count">({{ decade.count }})</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        {% if available_filters.artist_types %}
+        <div class="filter-group">
+            <span class="filter-label"><i class="fa-solid fa-users"></i> Artist Type</span>
+            <div class="filter-options">
+                {% for type in available_filters.artist_types %}
+                <a href="?artist_type={{ type.type }}" class="filter-chip">
+                    {{ type.type }} <span class="count">({{ type.count }})</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Keyboard Shortcuts Hint for Results -->
+{% if recommendations %}
+<div class="keyboard-hint" id="keyboard-hint-results">
+    <i class="fa-solid fa-keyboard" aria-hidden="true"></i>
+    <span>Navigate: <kbd>J</kbd>/<kbd>K</kbd> move between tracks, <kbd>L</kbd> like, <kbd>D</kbd> dislike</span>
+</div>
+{% endif %}
+
+{% if recommendations %}
+<div class="recommendations-section">
+    <div class="recommendations-header">
+        <h2>Recommended Tracks</h2>
+        <button class="btn-spotify-export" id="btn-spotify-export" title="Create a Spotify playlist with these recommendations">
+            <i class="fa-brands fa-spotify" aria-hidden="true"></i>
+            <span>Export to Spotify</span>
+        </button>
+    </div>
+    <div class="track-grid">
+        {% for track in recommendations %}
+        <div class="track-card recommendation-card" data-track-id="{{ track.id }}" style="--card-index: {{ forloop.counter0 }};">
+            <div class="track-info">
+                <div style="display: flex; align-items: baseline; gap: 0.5rem;">
+                    <span class="rank-number{% if forloop.counter <= 3 %} rank-top{% endif %}">{{ forloop.counter }}</span>
+                    <h3 class="track-title">{{ track.title }}</h3>
+                </div>
+                <p class="track-artist">{{ track.artist.name }}</p>
+
+                <!-- Spotify Embed Player (lazy-loaded) -->
+                <div class="spotify-embed">
+                    <iframe
+                        data-src="https://open.spotify.com/embed/track/{{ track.id }}?utm_source=generator&theme=0"
+                        width="100%"
+                        height="152"
+                        frameBorder="0"
+                        allowfullscreen=""
+                        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                        title="Spotify player for {{ track.title }} by {{ track.artist.name }}">
+                    </iframe>
+                    <!-- Fallback link for restricted embeds -->
+                    <a href="https://open.spotify.com/track/{{ track.id }}" target="_blank" rel="noopener" class="btn-spotify-open">
+                        Open in Spotify <i class="fa-solid fa-external-link-alt"></i>
+                    </a>
+                </div>
+
+                <div class="track-features">
+                    <span class="feature">E: {{ track.energy|floatformat:2 }}</span>
+                    <span class="feature">V: {{ track.valence|floatformat:2 }}</span>
+                    <span class="feature">D: {{ track.danceability|floatformat:2 }}</span>
+                </div>
+                {% if not track.is_audio_analyzed %}
+                <div class="unanalyzed-warning" title="Audio features unavailable - using neutral defaults">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span>Limited analysis</span>
+                </div>
+                {% endif %}
+                {% if track.genres.all %}
+                <div class="track-genres">
+                    {% for genre in track.genres.all|slice:":3" %}
+                    <span class="genre-tag">{{ genre.name }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Artist External Data Card -->
+                {% with info=artist_info|get_item:track.id %}
+                {% if info.is_enriched %}
+                <div class="artist-info-card">
+                    <div class="artist-info-header">
+                        <i class="fa-solid fa-user-astronaut"></i>
+                        Artist Info
+                        <span class="enrichment-badge enriched">
+                            <i class="fa-solid fa-check"></i> Enriched
+                        </span>
+                        {% if info.data_sources %}
+                        <span class="data-sources-badge" title="Data from: {{ info.data_sources|join:', ' }}">
+                            {{ info.data_sources|length }} source{{ info.data_sources|length|pluralize }}
+                        </span>
+                        {% endif %}
+                    </div>
+                    <div class="artist-info-grid">
+                        {% if info.country_name %}
+                        <div class="artist-info-item">
+                            <span class="artist-info-label">Origin</span>
+                            <span class="artist-info-value">
+                                <i class="fa-solid fa-globe"></i>{{ info.country_name }}
+                            </span>
+                        </div>
+                        {% endif %}
+                        {% if info.type %}
+                        <div class="artist-info-item">
+                            <span class="artist-info-label">Type</span>
+                            <span class="artist-info-value">
+                                <i class="fa-solid fa-{% if info.type == 'Group' %}users{% elif info.type == 'Person' %}user{% else %}music{% endif %}"></i>{{ info.type }}
+                            </span>
+                        </div>
+                        {% endif %}
+                        {% if info.decade %}
+                        <div class="artist-info-item">
+                            <span class="artist-info-label">Era</span>
+                            <span class="artist-info-value">
+                                <i class="fa-solid fa-clock-rotate-left"></i>{{ info.decade }}
+                            </span>
+                        </div>
+                        {% endif %}
+                        {% if info.formed_year %}
+                        <div class="artist-info-item">
+                            <span class="artist-info-label">Formed</span>
+                            <span class="artist-info-value">
+                                <i class="fa-solid fa-calendar"></i>{{ info.formed_year }}
+                            </span>
+                        </div>
+                        {% endif %}
+                        {% if info.listeners %}
+                        <div class="artist-info-item">
+                            <span class="artist-info-label">Last.fm</span>
+                            <span class="artist-info-value">
+                                <i class="fa-solid fa-headphones"></i>{{ info.listeners|floatformat:0 }} listeners
+                            </span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if info.description %}
+                    <div class="artist-description">
+                        "{{ info.description }}"
+                    </div>
+                    {% endif %}
+                    {% if info.influenced_by %}
+                    <div class="external-tags influenced-by">
+                        <span class="external-tags-label">
+                            <i class="fa-solid fa-lightbulb"></i> Influenced by:
+                        </span>
+                        {% for artist in info.influenced_by %}
+                        <span class="external-tag influence-tag">{{ artist }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if info.similar_artists %}
+                    <div class="external-tags similar-artists">
+                        <span class="external-tags-label">
+                            <i class="fa-solid fa-people-arrows"></i> Similar artists:
+                        </span>
+                        {% for artist in info.similar_artists %}
+                        <span class="external-tag similar-tag">{{ artist }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if info.lastfm_tags %}
+                    <div class="external-tags lastfm-tags">
+                        <span class="external-tags-label">
+                            <i class="fa-brands fa-lastfm"></i> Community tags:
+                        </span>
+                        {% for tag in info.lastfm_tags %}
+                        <span class="external-tag lastfm-tag">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                    {% elif info.tags %}
+                    <div class="external-tags">
+                        <span class="external-tags-label">
+                            <i class="fa-solid fa-tags"></i> Genre tags:
+                        </span>
+                        {% for tag in info.tags %}
+                        <span class="external-tag">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if info.genius_url %}
+                    <div class="genius-link">
+                        <a href="{{ info.genius_url }}" target="_blank" rel="noopener" class="genius-btn">
+                            <i class="fa-solid fa-microphone-lines"></i> View on Genius
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                {% endwith %}
+
+                <!-- Why This Recommendation? Explanation -->
+                {% with explanation=explanations|get_item:track.id %}
+                {% if explanation.reasons %}
+                <div class="track-explanation">
+                    <div class="explanation-header">
+                        <i class="fa-solid fa-lightbulb"></i> Why this track?
+                    </div>
+                    <div class="explanation-reasons">
+                        {% for reason in explanation.reasons %}
+                        <div class="explanation-reason">
+                            <i class="fa-solid fa-check"></i>
+                            <span>{{ reason }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="similarity-badge {% if explanation.similarity_score >= 80 %}high{% elif explanation.similarity_score >= 60 %}medium{% else %}low{% endif %}">
+                        <i class="fa-solid fa-bullseye"></i>
+                        {{ explanation.similarity_score }}% match
+                    </div>
+                </div>
+                {% endif %}
+                {% endwith %}
+
+                <!-- Categorical Preference Adjustments -->
+                {% if categorical_learning_applied %}
+                {% with adj=categorical_adjustments|get_item:track.id %}
+                {% if adj.total_adjustment != 0 %}
+                <div class="categorical-adjustments">
+                    <div class="adjustment-header">
+                        <i class="fa-solid fa-scale-balanced"></i>
+                        <span>Preference Match</span>
+                    </div>
+                    <div class="adjustment-badges">
+                        {% for reason in adj.reasons %}
+                        <span class="adjustment-badge {% if '+' in reason %}boost{% else %}penalty{% endif %}">
+                            {{ reason }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% endwith %}
+                {% endif %}
+
+                <!-- External Data Enhancement Badges -->
+                {% if external_enhancement_applied %}
+                {% with enh=external_enhancements|get_item:track.id %}
+                {% if enh.total_boost %}
+                <div class="external-enhancement-badges">
+                    <div class="enhancement-badge-header">
+                        <i class="fa-solid fa-rocket"></i>
+                        <span>Boosted by external data</span>
+                    </div>
+                    <div class="enhancement-badge-list">
+                        {% if enh.similar_artist %}
+                        <span class="enhancement-badge similar-boost">
+                            <i class="fa-solid fa-people-arrows"></i> Similar to playlist
+                        </span>
+                        {% endif %}
+                        {% if enh.influence_chain %}
+                        <span class="enhancement-badge influence-boost">
+                            <i class="fa-solid fa-lightbulb"></i> Influence connection
+                        </span>
+                        {% endif %}
+                        {% if enh.tag_matches %}
+                        <span class="enhancement-badge tag-boost" title="Matching tags: {{ enh.tag_matches|join:', ' }}">
+                            <i class="fa-solid fa-tags"></i> {{ enh.tag_matches|length }} tag match{{ enh.tag_matches|length|pluralize:"es" }}
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                {% endwith %}
+                {% endif %}
+            </div>
+            <div class="track-actions">
+                <form method="post" action="/builder/" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add">
+                    <input type="hidden" name="track_id" value="{{ track.id }}">
+                    <input type="hidden" name="next" value="/results/">
+                    <button type="submit" class="btn btn-small btn-add">+ Add to Playlist</button>
+                </form>
+            </div>
+
+            <!-- Feedback Section: Like/Dislike Buttons with FontAwesome -->
+            <div class="feedback-section" id="feedback-{{ track.id }}">
+                <button
+                    class="btn-feedback btn-like"
+                    id="btn-{{ track.id }}-up"
+                    data-track-id="{{ track.id }}"
+                    data-feedback="positive"
+                    title="I like this recommendation">
+                    <i class="fa-solid fa-thumbs-up"></i>
+                </button>
+                <button
+                    class="btn-feedback btn-dislike"
+                    id="btn-{{ track.id }}-down"
+                    data-track-id="{{ track.id }}"
+                    data-feedback="negative"
+                    title="Not for me">
+                    <i class="fa-solid fa-thumbs-down"></i>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Collapsible Analysis Section (below recommendations) -->
+<div class="analysis-section" id="analysis-section">
+    <div class="analysis-section-header" id="analysis-toggle-header">
+        <h3><i class="fa-solid fa-chart-line"></i> Analysis &amp; Taste Profile</h3>
+        <i class="fa-solid fa-chevron-down analysis-section-toggle" id="analysis-section-toggle"></i>
+    </div>
+    <div class="analysis-section-body collapsed" id="analysis-section-body">
+
+        <!-- Categorical Learning Indicator -->
+        {% if categorical_learning_applied and categorical_prefs %}
+        <div class="categorical-learning">
+            <div class="categorical-learning-header">
+                <i class="fa-solid fa-tags"></i>
+                <span><strong>Learned Preferences:</strong> Your feedback has taught us what you like</span>
+            </div>
+            <div class="categorical-learning-grid">
+                {% if categorical_prefs.genres.liked or categorical_prefs.genres.disliked %}
+                <div class="pref-category">
+                    <span class="pref-label"><i class="fa-solid fa-music"></i> Genres</span>
+                    <div class="pref-tags">
+                        {% for genre in categorical_prefs.genres.liked|slice:":3" %}
+                        <span class="pref-tag liked"><i class="fa-solid fa-thumbs-up"></i> {{ genre }}</span>
+                        {% endfor %}
+                        {% for genre in categorical_prefs.genres.disliked|slice:":3" %}
+                        <span class="pref-tag disliked"><i class="fa-solid fa-thumbs-down"></i> {{ genre }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% if categorical_prefs.countries.liked or categorical_prefs.countries.disliked %}
+                <div class="pref-category">
+                    <span class="pref-label"><i class="fa-solid fa-globe"></i> Origins</span>
+                    <div class="pref-tags">
+                        {% for country in categorical_prefs.countries.liked|slice:":3" %}
+                        <span class="pref-tag liked"><i class="fa-solid fa-thumbs-up"></i> {{ country }}</span>
+                        {% endfor %}
+                        {% for country in categorical_prefs.countries.disliked|slice:":3" %}
+                        <span class="pref-tag disliked"><i class="fa-solid fa-thumbs-down"></i> {{ country }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% if categorical_prefs.artist_types.liked or categorical_prefs.artist_types.disliked %}
+                <div class="pref-category">
+                    <span class="pref-label"><i class="fa-solid fa-users"></i> Artist Types</span>
+                    <div class="pref-tags">
+                        {% for atype in categorical_prefs.artist_types.liked|slice:":2" %}
+                        <span class="pref-tag liked"><i class="fa-solid fa-thumbs-up"></i> {{ atype }}</span>
+                        {% endfor %}
+                        {% for atype in categorical_prefs.artist_types.disliked|slice:":2" %}
+                        <span class="pref-tag disliked"><i class="fa-solid fa-thumbs-down"></i> {{ atype }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% if categorical_prefs.decades.liked or categorical_prefs.decades.disliked %}
+                <div class="pref-category">
+                    <span class="pref-label"><i class="fa-solid fa-calendar"></i> Decades</span>
+                    <div class="pref-tags">
+                        {% for decade in categorical_prefs.decades.liked|slice:":2" %}
+                        <span class="pref-tag liked"><i class="fa-solid fa-thumbs-up"></i> {{ decade }}</span>
+                        {% endfor %}
+                        {% for decade in categorical_prefs.decades.disliked|slice:":2" %}
+                        <span class="pref-tag disliked"><i class="fa-solid fa-thumbs-down"></i> {{ decade }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- External Data Enhancement Indicator -->
+        {% if external_enhancement_applied %}
+        <div class="external-enhancement-indicator">
+            <div class="enhancement-header">
+                <i class="fa-solid fa-network-wired"></i>
+                <span><strong>External Data Enhancement:</strong> Recommendations boosted by artist relationships</span>
+            </div>
+            <div class="enhancement-details">
+                <span class="enhancement-source">
+                    <i class="fa-solid fa-people-arrows"></i> Similar artists from Last.fm
+                </span>
+                <span class="enhancement-source">
+                    <i class="fa-solid fa-lightbulb"></i> Influence chains from Wikidata
+                </span>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Influence Suggestions -->
+        {% if influence_suggestions %}
+        <div class="influence-suggestions">
+            <div class="suggestions-header">
+                <i class="fa-solid fa-star"></i>
+                <span>Artists who influenced your playlist:</span>
+            </div>
+            <div class="suggestions-list">
+                {% for artist in influence_suggestions %}
+                <span class="suggestion-tag">{{ artist }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Vibe Comparison Chart -->
+        <div class="vibe-comparison">
+            <h2>Vibe Comparison</h2>
+            <div class="chart-container">
+                <canvas id="vibeChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Diversity Stats -->
+        {% if diversity_stats.total_tracks %}
+        <div class="diversity-section">
+            <div class="diversity-header">
+                <i class="fa-solid fa-chart-pie"></i>
+                <h3>Your Musical Palette</h3>
+            </div>
+            <div class="diversity-score">
+                <div class="score-circle {% if diversity_stats.diversity_score >= 60 %}score-high{% elif diversity_stats.diversity_score >= 30 %}score-medium{% else %}score-low{% endif %}">
+                    {{ diversity_stats.diversity_score|floatformat:0 }}
+                </div>
+                <div class="score-info">
+                    <div class="score-title">Diversity Score</div>
+                    <div class="score-desc">
+                        {% if diversity_stats.diversity_score >= 60 %}
+                        Eclectic taste! You explore music from many eras, countries, and styles.
+                        {% elif diversity_stats.diversity_score >= 30 %}
+                        Balanced palette with some variety. Try the filters to discover new sounds!
+                        {% else %}
+                        Focused taste. Use the filters above to explore music from different regions or eras.
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            <div class="diversity-stats-grid">
+                {% if diversity_stats.countries %}
+                <div class="stat-mini-card">
+                    <div class="stat-mini-label"><i class="fa-solid fa-globe"></i> Top Countries</div>
+                    <div class="stat-mini-list">
+                        {% for country, count in diversity_stats.countries.items %}
+                        <span>{{ country }} ({{ count }})</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% if diversity_stats.decades %}
+                <div class="stat-mini-card">
+                    <div class="stat-mini-label"><i class="fa-solid fa-clock"></i> Eras</div>
+                    <div class="stat-mini-list">
+                        {% for decade, count in diversity_stats.decades.items %}
+                        <span>{{ decade }} ({{ count }})</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% if diversity_stats.genres %}
+                <div class="stat-mini-card">
+                    <div class="stat-mini-label"><i class="fa-solid fa-music"></i> Top Genres</div>
+                    <div class="stat-mini-list">
+                        {% for genre, count in diversity_stats.genres.items|slice:":5" %}
+                        <span>{{ genre }} ({{ count }})</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% if diversity_stats.artist_types %}
+                <div class="stat-mini-card">
+                    <div class="stat-mini-label"><i class="fa-solid fa-users"></i> Artist Types</div>
+                    <div class="stat-mini-list">
+                        {% for type, count in diversity_stats.artist_types.items %}
+                        <span>{{ type }} ({{ count }})</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Centroid / Taste Profile -->
+        {% if centroid %}
+        <div class="centroid-section">
+            <h2>Your Taste Profile (Centroid)</h2>
+            <div class="centroid-features">
+                <div class="centroid-item">
+                    <span class="label">Energy</span>
+                    <div class="bar-container"><div class="bar" style="width: calc({{ centroid.energy|floatformat:2 }} * 100%);"></div></div>
+                    <span class="value">{{ centroid.energy|floatformat:2 }}</span>
+                </div>
+                <div class="centroid-item">
+                    <span class="label">Valence</span>
+                    <div class="bar-container"><div class="bar bar-valence" style="width: calc({{ centroid.valence|floatformat:2 }} * 100%);"></div></div>
+                    <span class="value">{{ centroid.valence|floatformat:2 }}</span>
+                </div>
+                <div class="centroid-item">
+                    <span class="label">Danceability</span>
+                    <div class="bar-container"><div class="bar bar-dance" style="width: calc({{ centroid.danceability|floatformat:2 }} * 100%);"></div></div>
+                    <span class="value">{{ centroid.danceability|floatformat:2 }}</span>
+                </div>
+                <div class="centroid-item">
+                    <span class="label">Acousticness</span>
+                    <div class="bar-container"><div class="bar bar-acoustic" style="width: calc({{ centroid.acousticness|floatformat:2 }} * 100%);"></div></div>
+                    <span class="value">{{ centroid.acousticness|floatformat:2 }}</span>
+                </div>
+                <div class="centroid-item">
+                    <span class="label">Tempo</span>
+                    <span class="value tempo-value">{{ centroid.tempo|floatformat:0 }} BPM</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Preferences -->
+        {% if centroid %}
+        <div class="preferences-section">
+            <h3>Adjust Preferences (Optional)</h3>
+            <div class="mood-presets" role="group" aria-label="Mood preset buttons">
+                <span class="mood-label" id="mood-label">Quick presets:</span>
+                <button type="button" class="mood-btn" data-mood="chill" aria-describedby="mood-label" aria-label="Chill mood: Low energy, high acousticness, moderate valence">
+                    <i class="fa-solid fa-moon" aria-hidden="true"></i> Chill
+                </button>
+                <button type="button" class="mood-btn" data-mood="energetic" aria-describedby="mood-label" aria-label="Energetic mood: High energy, high danceability">
+                    <i class="fa-solid fa-bolt" aria-hidden="true"></i> Energetic
+                </button>
+                <button type="button" class="mood-btn" data-mood="happy" aria-describedby="mood-label" aria-label="Happy mood: High valence, moderate energy">
+                    <i class="fa-solid fa-face-smile" aria-hidden="true"></i> Happy
+                </button>
+                <button type="button" class="mood-btn" data-mood="focus" aria-describedby="mood-label" aria-label="Focus mood: Low valence, moderate acousticness, steady tempo">
+                    <i class="fa-solid fa-brain" aria-hidden="true"></i> Focus
+                </button>
+                <button type="button" class="mood-btn" data-mood="party" aria-describedby="mood-label" aria-label="Party mood: High energy, high danceability, high valence">
+                    <i class="fa-solid fa-champagne-glasses" aria-hidden="true"></i> Party
+                </button>
+                <button type="button" class="mood-btn mood-reset" data-mood="reset" aria-label="Reset all preferences to default">
+                    <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Reset
+                </button>
+            </div>
+            <form method="post" action="/results/" class="preferences-form" id="preferences-form">
+                {% csrf_token %}
+                <div class="preference-inputs">
+                    <div class="pref-input">
+                        <label for="energy">Target Energy: <span class="pref-value" id="energy-value">{{ preferences.energy|default:"0.5" }}</span></label>
+                        <input type="range" name="energy" id="energy" min="0" max="1" step="0.1" value="{{ preferences.energy|default:'0.5' }}">
+                    </div>
+                    <div class="pref-input">
+                        <label for="valence">Target Valence: <span class="pref-value" id="valence-value">{{ preferences.valence|default:"0.5" }}</span></label>
+                        <input type="range" name="valence" id="valence" min="0" max="1" step="0.1" value="{{ preferences.valence|default:'0.5' }}">
+                    </div>
+                    <div class="pref-input">
+                        <label for="danceability">Target Danceability: <span class="pref-value" id="danceability-value">{{ preferences.danceability|default:"0.5" }}</span></label>
+                        <input type="range" name="danceability" id="danceability" min="0" max="1" step="0.1" value="{{ preferences.danceability|default:'0.5' }}">
+                    </div>
+                    <div class="pref-input">
+                        <label for="acousticness">Target Acousticness: <span class="pref-value" id="acousticness-value">{{ preferences.acousticness|default:"0.5" }}</span></label>
+                        <input type="range" name="acousticness" id="acousticness" min="0" max="1" step="0.1" value="{{ preferences.acousticness|default:'0.5' }}">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-secondary">Apply Preferences</button>
+            </form>
+        </div>
+        {% endif %}
+
+    </div><!-- end analysis-section-body -->
+</div><!-- end analysis-section -->
+
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon" style="border-style: dashed; animation: emptyPulse 2s ease-in-out infinite;">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 18v-6a9 9 0 0118 0v6"></path>
+            <path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z"></path>
+        </svg>
+    </div>
+    <h2>No recommendations yet</h2>
+    <p>Add more tracks to your playlist so we can learn your taste, or try adjusting your preferences above.</p>
+    <a href="/" class="btn btn-primary btn-large">
+        <i class="fa-solid fa-search"></i> Discover Tracks to Add
+    </a>
+</div>
+<style>
+@keyframes emptyPulse {
+    0%, 100% { opacity: 0.7; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.05); }
+}
+</style>
+{% endif %}
+
+<div class="input-tracks-section">
+    <h3>Based on {{ input_tracks|length }} track{{ input_tracks|length|pluralize }}</h3>
+    <div class="input-tracks-list">
+        {% for track in input_tracks %}
+        <span class="input-track-chip">{{ track.title }} - {{ track.artist.name }}</span>
+        {% endfor %}
+    </div>
+    <a href="/builder/" class="btn btn-small">Edit Playlist</a>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// Spotify Playlist Export
+function exportToSpotify() {
+    // Collect track IDs from recommendation cards
+    const trackCards = document.querySelectorAll('.recommendation-card[data-track-id]');
+    const trackIds = Array.from(trackCards).map(card => card.dataset.trackId);
+
+    if (trackIds.length === 0) {
+        showToast('No tracks to export', 'error');
+        return;
+    }
+
+    // Show loading state on button
+    const exportBtn = document.querySelector('.btn-spotify-export');
+    const originalHtml = exportBtn.innerHTML;
+    exportBtn.disabled = true;
+    exportBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>Connecting...</span>';
+
+    // Request authorization URL from server
+    fetch('/ajax/spotify-export/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ track_ids: trackIds })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            if (!data.configured) {
+                showToast('Spotify integration not configured. Contact admin.', 'error');
+            } else {
+                showToast(data.error, 'error');
+            }
+            exportBtn.disabled = false;
+            exportBtn.innerHTML = originalHtml;
+            return;
+        }
+
+        // Redirect to Spotify authorization
+        if (data.auth_url) {
+            window.location.href = data.auth_url;
+        }
+    })
+    .catch(error => {
+        if (window.NEXTTRACK_DEBUG) console.error('Export error:', error);
+        showToast('Failed to connect to Spotify', 'error');
+        exportBtn.disabled = false;
+        exportBtn.innerHTML = originalHtml;
+    });
+}
+
+// Chart.js Radar Chart for Vibe Comparison
+{% if recommendations %}
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('vibeChart').getContext('2d');
+
+    const inputVibe = {{ input_vibe_json|safe }};
+    const resultVibe = {{ result_vibe_json|safe }};
+
+    new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: ['Danceability', 'Energy', 'Valence', 'Acousticness', 'Tempo'],
+            datasets: [
+                {
+                    label: 'Your Vibe',
+                    data: [
+                        inputVibe.danceability,
+                        inputVibe.energy,
+                        inputVibe.valence,
+                        inputVibe.acousticness,
+                        inputVibe.tempo_normalized
+                    ],
+                    fill: true,
+                    backgroundColor: 'rgba(29, 185, 84, 0.4)',  // Higher opacity for visibility
+                    borderColor: '#1db954',
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#1db954',
+                    pointHoverBackgroundColor: '#1db954',
+                    pointHoverBorderColor: '#fff',
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    borderWidth: 2
+                },
+                {
+                    label: 'Result Vibe',
+                    data: [
+                        resultVibe.danceability,
+                        resultVibe.energy,
+                        resultVibe.valence,
+                        resultVibe.acousticness,
+                        resultVibe.tempo_normalized
+                    ],
+                    fill: true,
+                    backgroundColor: 'rgba(255, 99, 132, 0.4)',  // Higher opacity for visibility
+                    borderColor: '#ff6384',
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: '#ff6384',
+                    pointHoverBackgroundColor: '#ff6384',
+                    pointHoverBorderColor: '#fff',
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    borderWidth: 2
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                r: {
+                    min: 0,
+                    max: 1,
+                    beginAtZero: true,
+                    angleLines: {
+                        display: true,
+                        color: 'rgba(255, 255, 255, 0.2)'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.2)',
+                        circular: true
+                    },
+                    pointLabels: {
+                        color: '#ffffff',
+                        font: {
+                            size: window.innerWidth <= 768 ? 10 : 12,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        display: false,
+                        stepSize: 0.2
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                        color: '#ffffff',
+                        font: {
+                            size: 12
+                        },
+                        padding: 20,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    padding: 12,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + (context.raw * 100).toFixed(0) + '%';
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+{% endif %}
+
+/**
+ * Toggle Filters Section
+ * Filters are expanded by default - toggle to collapse
+ */
+function toggleFilters() {
+    const content = document.getElementById('filters-content');
+    const toggle = document.getElementById('filters-toggle');
+
+    if (content && toggle) {
+        content.classList.toggle('collapsed');
+        toggle.classList.toggle('expanded');
+    }
+}
+
+// Filters are expanded by default via CSS
+// The toggle icon starts in non-expanded state
+document.addEventListener('DOMContentLoaded', function() {
+    var toggle = document.getElementById('filters-toggle');
+    if (toggle) {
+        toggle.classList.add('expanded'); // Start expanded
+    }
+
+    // Wire up filters header click
+    var filtersHeader = document.getElementById('filters-header');
+    if (filtersHeader) {
+        filtersHeader.addEventListener('click', toggleFilters);
+    }
+
+    // Wire up Spotify export button
+    var exportBtn = document.getElementById('btn-spotify-export');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportToSpotify);
+    }
+
+    // Wire up feedback buttons via event delegation
+    document.querySelectorAll('.btn-feedback[data-track-id]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var trackId = this.dataset.trackId;
+            var isPositive = this.dataset.feedback === 'positive';
+            sendFeedback(trackId, isPositive);
+        });
+    });
+});
+
+// showToast, addToPlaylist, updatePlaylistCount, showDuplicateModal,
+// hideDuplicateModal are provided by common.js loaded in base.html
+
+/**
+ * Feedback submission with toggle/undo support
+ *
+ * Click once: Adds like/dislike (button becomes active)
+ * Click same button again: Removes feedback (undo - button becomes inactive)
+ * Click different button: Switches vote
+ */
+async function sendFeedback(trackId, isPositive) {
+    const upBtn = document.getElementById(`btn-${trackId}-up`);
+    const downBtn = document.getElementById(`btn-${trackId}-down`);
+    const trackCard = document.querySelector(`[data-track-id="${trackId}"]`);
+    const trackTitle = trackCard ? trackCard.querySelector('.track-title').textContent : 'Track';
+
+    // Prevent double-clicks during request
+    if (upBtn.disabled && downBtn.disabled) {
+        return;
+    }
+
+    // Disable both buttons during submission
+    upBtn.disabled = true;
+    downBtn.disabled = true;
+
+    // Get CSRF token via shared helper
+    var csrfToken = getCsrfToken();
+
+    // Convert boolean to score integer (1 for like, -1 for dislike)
+    const score = isPositive ? 1 : -1;
+
+    try {
+        const response = await fetch('/api/feedback/', {
+            method: 'POST',
+            credentials: 'same-origin',  // Include cookies
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({
+                track_id: trackId,
+                score: score
+            })
+        });
+
+        // Check HTTP status first
+        if (!response.ok) {
+            const errorText = await response.text();
+            if (window.NEXTTRACK_DEBUG) console.error('HTTP error:', response.status, errorText);
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (window.NEXTTRACK_DEBUG) console.log('Feedback response:', data);
+
+        // Handle different response statuses
+        if (data.status === 'created' || data.status === 'updated') {
+            // Feedback was added or changed
+            // Reset both buttons first
+            upBtn.classList.remove('active');
+            downBtn.classList.remove('active-dislike');
+            upBtn.style.opacity = '';
+            downBtn.style.opacity = '';
+
+            // Activate the clicked button
+            if (isPositive) {
+                upBtn.classList.add('active');
+                downBtn.style.opacity = '0.3';
+            } else {
+                downBtn.classList.add('active-dislike');
+                upBtn.style.opacity = '0.3';
+            }
+
+            // Show toast
+            const action = data.status === 'created' ? 'Saved' : 'Updated';
+            const feedbackType = isPositive ? 'liked' : 'disliked';
+            showToast(`${action}: You ${feedbackType} <span class="toast-track">${trackTitle}</span>`);
+
+            // Announce to screen readers
+            if (window.announceToScreenReader) {
+                window.announceToScreenReader(action + ': You ' + feedbackType + ' ' + trackTitle);
+            }
+
+        } else if (data.status === 'removed') {
+            // Feedback was removed (undo action)
+            // Reset both buttons to inactive state
+            upBtn.classList.remove('active');
+            downBtn.classList.remove('active-dislike');
+            upBtn.style.opacity = '';
+            downBtn.style.opacity = '';
+
+            showToast(`Removed feedback for <span class="toast-track">${trackTitle}</span>`);
+
+            // Announce to screen readers
+            if (window.announceToScreenReader) {
+                window.announceToScreenReader('Removed feedback for ' + trackTitle);
+            }
+
+        } else if (data.error) {
+            throw new Error(data.error);
+        }
+
+        // Re-enable buttons for future toggles
+        upBtn.disabled = false;
+        downBtn.disabled = false;
+
+    } catch (error) {
+        // Re-enable on error
+        upBtn.disabled = false;
+        downBtn.disabled = false;
+        var errorMsg = 'Failed to save feedback. Please try again.';
+        if (error instanceof TypeError) {
+            errorMsg = 'You appear to be offline. Check your connection and try again.';
+        } else if (error.message && /^HTTP\s5/.test(error.message)) {
+            errorMsg = 'Server error - please try again in a moment.';
+        } else if (error.message && /^HTTP\s4/.test(error.message)) {
+            errorMsg = 'Invalid request. Please refresh the page and try again.';
+        }
+        showToast(errorMsg, 'error');
+        if (window.NEXTTRACK_DEBUG) console.error('Feedback error:', error);
+    }
+}
+
+// Initialize shared modules from common.js
+initDuplicateModal();
+initAjaxFormInterceptor();
+
+// ============================
+// Analysis Section Toggle
+// ============================
+(function() {
+    var header = document.getElementById('analysis-toggle-header');
+    var body = document.getElementById('analysis-section-body');
+    var toggle = document.getElementById('analysis-section-toggle');
+    if (!header || !body || !toggle) return;
+
+    header.addEventListener('click', function() {
+        body.classList.toggle('collapsed');
+        toggle.classList.toggle('expanded');
+    });
+})();
+
+// ============================
+// Keyboard Shortcuts for Feedback (J/K/L/D)
+// ============================
+(function() {
+    var cards = document.querySelectorAll('.recommendation-card[data-track-id]');
+    if (cards.length === 0) return;
+
+    var currentIndex = -1;
+
+    function setFocus(index) {
+        // Remove previous focus
+        if (currentIndex >= 0 && currentIndex < cards.length) {
+            cards[currentIndex].classList.remove('keyboard-focus');
+        }
+        currentIndex = index;
+        if (currentIndex >= 0 && currentIndex < cards.length) {
+            cards[currentIndex].classList.add('keyboard-focus');
+            cards[currentIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Set aria-activedescendant
+            var grid = cards[currentIndex].closest('.track-grid');
+            if (grid) {
+                grid.setAttribute('aria-activedescendant', cards[currentIndex].id || '');
+            }
+            if (window.announceToScreenReader) {
+                var title = cards[currentIndex].querySelector('.track-title');
+                var artist = cards[currentIndex].querySelector('.track-artist');
+                var msg = 'Track ' + (currentIndex + 1) + ' of ' + cards.length;
+                if (title) msg += ': ' + title.textContent;
+                if (artist) msg += ' by ' + artist.textContent;
+                window.announceToScreenReader(msg);
+            }
+        }
+    }
+
+    // Give each card a unique id and tabindex for accessibility
+    cards.forEach(function(card, idx) {
+        if (!card.id) card.id = 'rec-card-' + idx;
+        card.setAttribute('tabindex', '-1');
+    });
+
+    document.addEventListener('keydown', function(e) {
+        // Don't fire if user is in an input/textarea
+        var tag = e.target.tagName.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+        // Don't fire if a modal is open
+        if (document.querySelector('.modal-overlay.active') || document.querySelector('.shortcuts-modal-overlay.active')) return;
+
+        var key = e.key.toLowerCase();
+
+        if (key === 'j') {
+            e.preventDefault();
+            setFocus(Math.min(currentIndex + 1, cards.length - 1));
+        } else if (key === 'k') {
+            e.preventDefault();
+            setFocus(Math.max(currentIndex - 1, 0));
+        } else if (key === 'l' && currentIndex >= 0) {
+            e.preventDefault();
+            var trackId = cards[currentIndex].dataset.trackId;
+            if (trackId) sendFeedback(trackId, true);
+        } else if (key === 'd' && currentIndex >= 0) {
+            e.preventDefault();
+            var trackId = cards[currentIndex].dataset.trackId;
+            if (trackId) sendFeedback(trackId, false);
+        }
+    });
+})();
+
+/**
+ * User Experience Survey System
+ * Triggers after user has interacted with several recommendations
+ */
+const surveyModal = document.getElementById('survey-modal');
+const surveyClose = document.getElementById('survey-close');
+const surveySkip = document.getElementById('survey-skip');
+const surveySubmit = document.getElementById('survey-submit');
+const surveyForm = document.getElementById('survey-form');
+
+// Track user interactions
+let interactionCount = parseInt(sessionStorage.getItem('nexttrack_interactions') || '0');
+let surveySent = sessionStorage.getItem('nexttrack_survey_sent') === 'true';
+const SURVEY_THRESHOLD = 8; // Show survey after 8 interactions
+
+function incrementInteraction() {
+    interactionCount++;
+    sessionStorage.setItem('nexttrack_interactions', interactionCount.toString());
+
+    // Show survey after threshold interactions (and not already sent)
+    if (interactionCount >= SURVEY_THRESHOLD && !surveySent) {
+        setTimeout(showSurvey, 1500);
+    }
+}
+
+var _surveyFocusTrapCleanup = null;
+
+function showSurvey() {
+    if (!surveySent) {
+        surveyModal.classList.add('active');
+        // Apply focus trap
+        if (window.trapFocus) {
+            _surveyFocusTrapCleanup = window.trapFocus(surveyModal);
+        }
+        // Focus the close button
+        setTimeout(() => {
+            const closeBtn = document.getElementById('survey-close');
+            if (closeBtn) closeBtn.focus();
+        }, 100);
+        // Announce to screen readers
+        if (window.announceToScreenReader) {
+            window.announceToScreenReader('Feedback survey opened. Please share your experience with NextTrack.');
+        }
+    }
+}
+
+function hideSurvey() {
+    surveyModal.classList.remove('active');
+    // Remove focus trap
+    if (_surveyFocusTrapCleanup) {
+        _surveyFocusTrapCleanup();
+        _surveyFocusTrapCleanup = null;
+    }
+    // Announce to screen readers
+    if (window.announceToScreenReader) {
+        window.announceToScreenReader('Survey closed');
+    }
+}
+
+// Survey rating button handlers with ARIA support
+document.querySelectorAll('.rating-group').forEach(group => {
+    const field = group.dataset.field;
+    const hiddenInput = document.getElementById(`${field}-value`);
+
+    group.querySelectorAll('.rating-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Remove selected from siblings and update aria-checked
+            group.querySelectorAll('.rating-btn').forEach(b => {
+                b.classList.remove('selected');
+                b.setAttribute('aria-checked', 'false');
+            });
+            // Add selected to clicked button
+            this.classList.add('selected');
+            this.setAttribute('aria-checked', 'true');
+            // Update hidden input
+            if (hiddenInput) {
+                hiddenInput.value = this.dataset.value;
+            }
+            // Announce selection to screen readers
+            const label = this.getAttribute('aria-label') || this.textContent.trim();
+            if (window.announceToScreenReader) {
+                window.announceToScreenReader(`Selected: ${label}`);
+            }
+        });
+
+        // Keyboard navigation within radio group
+        btn.addEventListener('keydown', function(e) {
+            const buttons = Array.from(group.querySelectorAll('.rating-btn'));
+            const currentIndex = buttons.indexOf(this);
+            let nextIndex;
+
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                nextIndex = (currentIndex + 1) % buttons.length;
+                buttons[nextIndex].click();
+                buttons[nextIndex].focus();
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                nextIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+                buttons[nextIndex].click();
+                buttons[nextIndex].focus();
+            }
+        });
+    });
+});
+
+// Toggle button handlers (would recommend) with ARIA support
+document.querySelectorAll('.toggle-group').forEach(group => {
+    group.querySelectorAll('.toggle-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            group.querySelectorAll('.toggle-btn').forEach(b => {
+                b.classList.remove('active');
+                b.setAttribute('aria-checked', 'false');
+            });
+            this.classList.add('active');
+            this.setAttribute('aria-checked', 'true');
+            document.getElementById('recommend-value').value = this.dataset.value;
+        });
+    });
+});
+
+// Survey event listeners
+if (surveyClose) surveyClose.addEventListener('click', hideSurvey);
+if (surveySkip) surveySkip.addEventListener('click', function() {
+    sessionStorage.setItem('nexttrack_survey_sent', 'true');
+    surveySent = true;
+    hideSurvey();
+});
+
+if (surveySubmit) {
+    surveySubmit.addEventListener('click', async function() {
+        // Validate required fields
+        const satisfaction = document.getElementById('satisfaction-value').value;
+        const discovery = document.getElementById('discovery-value').value;
+        const accuracy = document.getElementById('accuracy-value').value;
+
+        if (!satisfaction || !discovery || !accuracy) {
+            showToast('Please answer all rating questions', 'warning');
+            return;
+        }
+
+        // Get CSRF token via shared helper
+        var csrfToken = getCsrfToken();
+
+        // Collect form data
+        const formData = {
+            overall_satisfaction: parseInt(satisfaction),
+            discovery_rating: parseInt(discovery),
+            accuracy_rating: parseInt(accuracy),
+            liked_most: surveyForm.querySelector('[name="liked_most"]').value,
+            improvement_suggestion: surveyForm.querySelector('[name="improvement_suggestion"]').value,
+            would_recommend: document.getElementById('recommend-value').value === 'true',
+            tracks_interacted: interactionCount
+        };
+
+        try {
+            surveySubmit.disabled = true;
+            surveySubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Submitting...';
+
+            const response = await fetch('/api/survey/', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken
+                },
+                body: JSON.stringify(formData)
+            });
+
+            if (response.ok) {
+                sessionStorage.setItem('nexttrack_survey_sent', 'true');
+                surveySent = true;
+
+                // Show success message
+                const modalBody = surveyModal.querySelector('.modal-body');
+                const modalActions = surveyModal.querySelector('.modal-actions');
+                modalBody.innerHTML = `
+                    <div class="survey-success">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <h4>Thank you for your feedback!</h4>
+                        <p>Your input helps us improve NextTrack for everyone.</p>
+                    </div>
+                `;
+                modalActions.innerHTML = '<button class="modal-btn modal-btn-confirm" id="survey-done-btn">Close</button>';
+                document.getElementById('survey-done-btn').addEventListener('click', function() {
+                    document.getElementById('survey-modal').classList.remove('active');
+                });
+
+                showToast('Thank you for your feedback!', 'success');
+            } else {
+                throw new Error('Failed to submit survey');
+            }
+        } catch (error) {
+            if (window.NEXTTRACK_DEBUG) console.error('Survey submission error:', error);
+            showToast('Failed to submit survey. Please try again.', 'error');
+            surveySubmit.disabled = false;
+            surveySubmit.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit Feedback';
+        }
+    });
+}
+
+// Increment interaction count on feedback or playlist add
+const originalSendFeedback = window.sendFeedback;
+if (typeof sendFeedback === 'function') {
+    const _originalFeedback = sendFeedback;
+    window.sendFeedback = async function(trackId, isPositive) {
+        await _originalFeedback(trackId, isPositive);
+        incrementInteraction();
+    };
+}
+
+// Track analytics event for page view
+document.addEventListener('DOMContentLoaded', function() {
+    // Record recommendation view event
+    fetch('/api/analytics/', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify({
+            event_type: 'recommend',
+            metadata: { count: {{ recommendations|length|default:0 }} }
+        })
+    }).catch(() => {}); // Silently fail analytics
+});
+
+/**
+ * Mood Preset System
+ * Quick-select buttons that set audio feature preferences
+ */
+const moodPresets = {
+    chill: {
+        energy: 0.3,
+        valence: 0.5,
+        danceability: 0.4,
+        acousticness: 0.7
+    },
+    energetic: {
+        energy: 0.9,
+        valence: 0.7,
+        danceability: 0.8,
+        acousticness: 0.2
+    },
+    happy: {
+        energy: 0.6,
+        valence: 0.9,
+        danceability: 0.7,
+        acousticness: 0.3
+    },
+    focus: {
+        energy: 0.4,
+        valence: 0.3,
+        danceability: 0.2,
+        acousticness: 0.6
+    },
+    party: {
+        energy: 0.9,
+        valence: 0.85,
+        danceability: 0.95,
+        acousticness: 0.1
+    }
+};
+
+// Range slider value display
+['energy', 'valence', 'danceability', 'acousticness'].forEach(function(name) {
+    var slider = document.getElementById(name);
+    var valueLabel = document.getElementById(name + '-value');
+    if (slider && valueLabel) {
+        slider.addEventListener('input', function() {
+            valueLabel.textContent = parseFloat(this.value).toFixed(1);
+        });
+    }
+});
+
+function updateSliderLabel(name, val) {
+    var slider = document.getElementById(name);
+    var valueLabel = document.getElementById(name + '-value');
+    if (slider) slider.value = val;
+    if (valueLabel) valueLabel.textContent = parseFloat(val).toFixed(1);
+}
+
+document.querySelectorAll('.mood-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const mood = this.dataset.mood;
+
+        // Remove active class from all buttons
+        document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
+
+        if (mood === 'reset') {
+            // Reset sliders to default (0.5)
+            updateSliderLabel('energy', 0.5);
+            updateSliderLabel('valence', 0.5);
+            updateSliderLabel('danceability', 0.5);
+            updateSliderLabel('acousticness', 0.5);
+            showToast('Preferences reset to defaults', 'success');
+        } else if (moodPresets[mood]) {
+            // Set inputs to preset values
+            const preset = moodPresets[mood];
+            updateSliderLabel('energy', preset.energy);
+            updateSliderLabel('valence', preset.valence);
+            updateSliderLabel('danceability', preset.danceability);
+            updateSliderLabel('acousticness', preset.acousticness);
+
+            // Add active class to clicked button
+            this.classList.add('active');
+
+            showToast(`Applied "${mood}" preset - click Apply Preferences to see results`, 'success');
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,217 @@
+/**
+ * Shared Component Styles
+ * Extracted from home.html, results.html, and builder.html inline styles
+ */
+
+/* Toast Notification System */
+.toast-container {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.toast {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1rem 1.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 280px;
+    max-width: 400px;
+    animation: slideInRight 0.3s ease, fadeOut 0.3s ease 2.7s forwards;
+}
+.toast.success {
+    border-left: 4px solid var(--primary-color);
+}
+.toast.success i {
+    color: var(--primary-color);
+}
+.toast.error {
+    border-left: 4px solid var(--danger-color);
+}
+.toast.error i {
+    color: var(--danger-color);
+}
+.toast.warning {
+    border-left: 4px solid #f59e0b;
+}
+.toast.warning i {
+    color: #f59e0b;
+}
+.toast-message {
+    flex: 1;
+    font-size: 0.9rem;
+    color: var(--text-color);
+}
+.toast-track {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        transform: translateX(50%);
+    }
+}
+
+/* Confirmation Modal */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 10001;
+    justify-content: center;
+    align-items: center;
+}
+.modal-overlay.active {
+    display: flex;
+}
+.modal-container {
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 2rem;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    animation: modalSlideIn 0.2s ease;
+}
+@keyframes modalSlideIn {
+    from {
+        transform: translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+.modal-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+.modal-header i {
+    color: #f59e0b;
+    font-size: 1.5rem;
+}
+.modal-header h3 {
+    margin: 0;
+    color: var(--text-color);
+    font-size: 1.1rem;
+}
+.modal-body {
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+    line-height: 1.6;
+}
+.modal-track-name {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+.modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+.modal-btn {
+    padding: 0.6rem 1.25rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+}
+.modal-btn-cancel {
+    background: var(--bg-secondary);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+.modal-btn-cancel:hover {
+    background: var(--border-color);
+}
+.modal-btn-confirm {
+    background: var(--primary-color);
+    color: var(--secondary-color);
+}
+.modal-btn-confirm:hover {
+    background: #1ed760;
+}
+.modal-btn-danger {
+    background: var(--danger-color);
+    color: white;
+}
+.modal-btn-danger:hover {
+    background: #c0392b;
+}
+
+/* Genre Tags */
+.genre-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: 0.5rem 0;
+}
+.genre-tag {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    text-transform: lowercase;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.2s ease;
+}
+.genre-tag:hover {
+    background: rgba(29, 185, 84, 0.15);
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+/* Button Add States */
+.btn-add.adding {
+    pointer-events: none;
+    opacity: 0.7;
+}
+.btn-add.added {
+    background: var(--primary-color);
+    color: var(--secondary-color);
+}
+
+/* Unanalyzed Track Warning */
+.unanalyzed-warning {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    margin-top: 0.5rem;
+}
+.unanalyzed-warning i {
+    font-size: 0.7rem;
+}

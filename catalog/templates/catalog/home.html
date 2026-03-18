@@ -1,0 +1,1165 @@
+{% extends 'catalog/base.html' %}
+
+{% block title %}Search Tracks{% endblock %}
+
+{% block meta_description %}Search over 30,000 tracks or find new music live from Spotify. Build your playlist and get AI-powered recommendations based on audio features.{% endblock %}
+
+{% block extra_head %}
+<style>
+    .hero-section {
+        text-align: center;
+        padding: 2rem 0;
+        margin-bottom: 2rem;
+    }
+    .hero-tagline {
+        font-size: 1.1rem;
+        color: var(--text-muted);
+        max-width: 600px;
+        margin: 0.5rem auto 0;
+        line-height: 1.6;
+    }
+    .tech-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--bg-card);
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-top: 1rem;
+    }
+    .tech-badge i {
+        color: var(--primary-color);
+    }
+    /* Source Badges - Visual Data Provenance */
+    .source-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .source-badge.live {
+        background: rgba(34, 197, 94, 0.15);
+        color: #22c55e;
+    }
+    .source-badge.catalog {
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+    }
+    .source-badge.limited {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+    }
+    .source-badge i {
+        font-size: 0.65rem;
+    }
+
+    /* Live Search Status Panel */
+    .search-status {
+        display: none;
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 1rem 1.5rem;
+        margin: 1rem 0;
+    }
+    .search-status.active {
+        display: block;
+    }
+    .search-status-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+    }
+    .search-status-spinner {
+        width: 20px;
+        height: 20px;
+        border: 2px solid var(--border-color);
+        border-top-color: var(--primary-color);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+    .search-status-title {
+        font-weight: 600;
+        color: var(--text-color);
+    }
+    .search-status-message {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    .search-status-progress {
+        height: 4px;
+        background: var(--border-color);
+        border-radius: 2px;
+        overflow: hidden;
+    }
+    .search-status-progress-bar {
+        height: 100%;
+        background: var(--primary-color);
+        transition: width 0.3s ease;
+        width: 0%;
+    }
+    .search-status-detail {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-top: 0.5rem;
+    }
+
+    /* WebSocket indicator - hidden by default, only shown during active operations */
+    .ws-indicator {
+        display: none;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-left: 1rem;
+    }
+    .ws-indicator.visible {
+        display: inline-flex;
+    }
+    .ws-indicator-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #666;
+    }
+    .ws-indicator-dot.connected {
+        background: #22c55e;
+    }
+    .ws-indicator-dot.connecting {
+        background: #f59e0b;
+        animation: pulse 1s infinite;
+    }
+    .ws-indicator-dot.searching {
+        background: #3b82f6;
+        animation: pulse 0.5s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    /* Search button loading state */
+    .btn-primary.loading {
+        pointer-events: none;
+        opacity: 0.8;
+    }
+    .btn-primary.loading .btn-text {
+        display: none;
+    }
+    .btn-primary .btn-spinner {
+        display: none;
+    }
+    .btn-primary.loading .btn-spinner {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .btn-spinner-icon {
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255,255,255,0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    /* Page-specific loading overlay removed - uses global overlay from base.html */
+
+    /* Genre tags, toast, modal, btn-add, unanalyzed-warning styles are in components.css */
+
+    /* Popularity Bar */
+    .popularity-indicator {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0.5rem 0;
+    }
+    .popularity-bar {
+        flex: 1;
+        height: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 2px;
+        overflow: hidden;
+        max-width: 100px;
+    }
+    .popularity-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--primary-color), #1ed760);
+        border-radius: 2px;
+        transition: width 0.3s ease;
+    }
+    .popularity-label {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    .popularity-label i {
+        font-size: 0.65rem;
+        color: var(--primary-color);
+    }
+
+    /* Enhanced Track Features Grid */
+    .track-features-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.4rem 0.75rem;
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .feature-item {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+    .feature-item i {
+        width: 14px;
+        text-align: center;
+        font-size: 0.7rem;
+    }
+    .feature-item .label {
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+    .feature-item .value {
+        color: var(--text-color);
+        font-weight: 500;
+    }
+    .feature-item.energy i { color: #f59e0b; }
+    .feature-item.valence i { color: #22c55e; }
+    .feature-item.dance i { color: #ec4899; }
+    .feature-item.acoustic i { color: #3b82f6; }
+    .feature-item.tempo i { color: #a855f7; }
+
+    /* Track Card Header Row */
+    .track-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-bottom: 0.25rem;
+    }
+    .track-title-wrap {
+        flex: 1;
+        min-width: 0;
+    }
+    .track-badges {
+        display: flex;
+        gap: 0.35rem;
+        flex-shrink: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Toast Notification Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Duplicate Song Confirmation Modal -->
+<div class="modal-overlay" id="duplicate-modal">
+    <div class="modal-container">
+        <div class="modal-header">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            <h3>Song Already in Playlist</h3>
+        </div>
+        <div class="modal-body">
+            <span class="modal-track-name" id="modal-track-name"></span> is already in your playlist. Would you like to add it again?
+        </div>
+        <div class="modal-actions">
+            <button class="modal-btn modal-btn-cancel" id="modal-cancel">No, Cancel</button>
+            <button class="modal-btn modal-btn-confirm" id="modal-confirm">Yes, Add Anyway</button>
+        </div>
+    </div>
+</div>
+
+<!-- Loading overlay now uses global overlay from base.html -->
+<script>
+// Check if we should show loading overlay for search (uses global overlay)
+(function() {
+    var searchQuery = sessionStorage.getItem('searchInProgress');
+    var hasQueryParam = window.location.search.indexOf('q=') !== -1;
+    if (searchQuery && hasQueryParam && window.NextTrackLoadingOverlay) {
+        window.NextTrackLoadingOverlay.showSearch(searchQuery);
+    } else {
+        sessionStorage.removeItem('searchInProgress');
+    }
+})();
+</script>
+
+<div class="hero-section">
+    <h1>Discover Your Next Favorite Track</h1>
+    <p class="hero-tagline">
+        A stateless music recommendation engine that combines audio features with artist relationships from MusicBrainz, Wikidata, and Last.fm.
+        Recommendations are boosted by influence chains and similar artists. No account needed.
+    </p>
+    <span class="tech-badge">
+        <i class="fa-solid fa-microchip"></i>
+        Content-Based Filtering
+    </span>
+    <span class="tech-badge">
+        <i class="fa-solid fa-database"></i>
+        MusicBrainz + Wikidata
+    </span>
+    <span class="tech-badge">
+        <i class="fa-solid fa-users"></i>
+        Last.fm Similar Artists
+    </span>
+    <span class="tech-badge">
+        <i class="fa-solid fa-bolt"></i>
+        Real-Time WebSocket
+    </span>
+</div>
+
+<!-- Hidden CSRF token for AJAX requests -->
+<div style="display:none">{% csrf_token %}</div>
+
+<div class="search-section">
+    <form id="search-form" method="get" action="/" class="search-form">
+        <input
+            type="text"
+            name="q"
+            id="search-input"
+            value="{{ query }}"
+            placeholder="Search by song title or artist..."
+            class="search-input"
+            autocomplete="off"
+            autofocus
+            required
+            minlength="2"
+        >
+        <button type="submit" class="btn btn-primary" id="search-btn">
+            <span class="btn-text"><i class="fa-solid fa-search"></i> Search</span>
+            <span class="btn-spinner"><span class="btn-spinner-icon"></span> Searching...</span>
+        </button>
+        <span class="ws-indicator">
+            <span class="ws-indicator-dot" id="ws-status-dot"></span>
+            <span id="ws-status-text">Connecting...</span>
+        </span>
+    </form>
+</div>
+
+<!-- Live Search Status Panel -->
+<div class="search-status" id="search-status">
+    <div class="search-status-header">
+        <div class="search-status-spinner"></div>
+        <span class="search-status-title">Searching...</span>
+    </div>
+    <div class="search-status-message" id="status-message">Initializing...</div>
+    <div class="search-status-progress">
+        <div class="search-status-progress-bar" id="status-progress"></div>
+    </div>
+    <div class="search-status-detail" id="status-detail"></div>
+</div>
+
+<!-- Results Container (populated by WebSocket or server) -->
+<div id="results-container">
+{% if query %}
+<div class="results-section">
+    <h2>Search Results for "{{ query }}"</h2>
+
+    {% if results %}
+    <div class="track-grid" id="track-grid">
+        {% for track in results %}
+        <div class="track-card">
+            <div class="track-info">
+                <div class="track-header">
+                    <div class="track-title-wrap">
+                        <h3 class="track-title">{{ track.title }}</h3>
+                    </div>
+                    <div class="track-badges">
+                        {% if track.is_audio_analyzed %}
+                        <span class="source-badge catalog" title="From local database with full audio analysis">
+                            <i class="fa-solid fa-database"></i> Catalog
+                        </span>
+                        {% else %}
+                        <span class="source-badge limited" title="Limited audio analysis - using default values">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Limited
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <p class="track-artist">{{ track.artist.name }}</p>
+
+                <!-- Genre Tags -->
+                {% if track.genres.all %}
+                <div class="genre-tags">
+                    {% for genre in track.genres.all|slice:":3" %}
+                    <span class="genre-tag">{{ genre.name }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Popularity Indicator -->
+                <div class="popularity-indicator">
+                    <span class="popularity-label">
+                        <i class="fa-solid fa-fire"></i> Popularity
+                    </span>
+                    <div class="popularity-bar" role="meter" aria-valuenow="{{ track.popularity }}" aria-valuemin="0" aria-valuemax="100" aria-label="Popularity: {{ track.popularity }} out of 100">
+                        <div class="popularity-fill" style="width: {{ track.popularity }}%"></div>
+                    </div>
+                    <span class="popularity-label">{{ track.popularity }}</span>
+                </div>
+
+                <!-- Audio Features Grid -->
+                <div class="track-features-grid">
+                    <div class="feature-item energy" title="Energy: Intensity and activity level (0-1)" role="meter" aria-valuenow="{{ track.energy|floatformat:2 }}" aria-valuemin="0" aria-valuemax="1" aria-label="Energy: {{ track.energy|floatformat:2 }}">
+                        <i class="fa-solid fa-bolt"></i>
+                        <span class="label">Energy</span>
+                        <span class="value">{{ track.energy|floatformat:2 }}</span>
+                    </div>
+                    <div class="feature-item valence" title="Valence: Musical positiveness/mood (0-1)" role="meter" aria-valuenow="{{ track.valence|floatformat:2 }}" aria-valuemin="0" aria-valuemax="1" aria-label="Mood: {{ track.valence|floatformat:2 }}">
+                        <i class="fa-solid fa-face-smile"></i>
+                        <span class="label">Mood</span>
+                        <span class="value">{{ track.valence|floatformat:2 }}</span>
+                    </div>
+                    <div class="feature-item dance" title="Danceability: Rhythm and beat strength (0-1)" role="meter" aria-valuenow="{{ track.danceability|floatformat:2 }}" aria-valuemin="0" aria-valuemax="1" aria-label="Danceability: {{ track.danceability|floatformat:2 }}">
+                        <i class="fa-solid fa-music"></i>
+                        <span class="label">Dance</span>
+                        <span class="value">{{ track.danceability|floatformat:2 }}</span>
+                    </div>
+                    <div class="feature-item acoustic" title="Acousticness: Acoustic vs electronic (0-1)" role="meter" aria-valuenow="{{ track.acousticness|floatformat:2 }}" aria-valuemin="0" aria-valuemax="1" aria-label="Acousticness: {{ track.acousticness|floatformat:2 }}">
+                        <i class="fa-solid fa-guitar"></i>
+                        <span class="label">Acoustic</span>
+                        <span class="value">{{ track.acousticness|floatformat:2 }}</span>
+                    </div>
+                    <div class="feature-item tempo" title="Tempo: Beats per minute">
+                        <i class="fa-solid fa-gauge-high"></i>
+                        <span class="label">BPM</span>
+                        <span class="value">{{ track.tempo|floatformat:0 }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="track-actions">
+                <form method="post" action="/builder/" class="inline-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add">
+                    <input type="hidden" name="track_id" value="{{ track.id }}">
+                    <input type="hidden" name="next" value="/?q={{ query }}">
+                    <button type="submit" class="btn btn-small btn-add">
+                        <i class="fa-solid fa-plus"></i> Add
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Show More Results Button -->
+    <div class="show-more-container" id="show-more-container">
+        <button type="button" class="btn-show-more" id="btn-show-more" data-offset="{{ results|length }}" data-query="{{ query }}">
+            <span class="btn-show-more-text"><i class="fa-solid fa-chevron-down"></i> Show More Results</span>
+            <span class="spinner"></span>
+        </button>
+    </div>
+
+    {% else %}
+    <div class="no-results">
+        <p>No tracks found for "{{ query }}"</p>
+        <p style="font-size: 0.9rem; margin-top: 0.75rem;">Try searching for popular artists like <strong>Beatles</strong>, <strong>Radiohead</strong>, or <strong>Daft Punk</strong>.</p>
+        <p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 0.5rem;">Our catalog has 30,000+ tracks. WebSocket search also checks Spotify for even more results.</p>
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="welcome-section">
+    <h2>How NextTrack Works</h2>
+    <div class="steps">
+        <div class="step">
+            <div class="step-number">1</div>
+            <h3>Search</h3>
+            <p>Find tracks from our 30k+ catalog or live from Spotify via real-time WebSocket search.</p>
+        </div>
+        <div class="step">
+            <div class="step-number">2</div>
+            <h3>Build</h3>
+            <p>Add tracks to build your playlist. Each track's audio features define your taste profile.</p>
+        </div>
+        <div class="step">
+            <div class="step-number">3</div>
+            <h3>Discover</h3>
+            <p>Get recommendations enhanced by artist relationships and refined by your feedback.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Collapsible Algorithm Details -->
+<div class="info-box" style="margin-bottom: 1.5rem;">
+    <h3 style="cursor: pointer;" onclick="var c=this.nextElementSibling;c.style.display=c.style.display==='none'?'block':'none';this.querySelector('.toggle-icon').classList.toggle('expanded');">
+        <i class="fa-solid fa-brain"></i> How It Works
+        <i class="fa-solid fa-chevron-down toggle-icon" style="margin-left: auto; font-size: 0.8rem; transition: transform 0.3s; color: var(--text-muted);"></i>
+    </h3>
+    <div style="display: none;">
+    <h4 style="color: var(--primary-color); margin: 0.75rem 0 0.5rem; font-size: 0.95rem;">The Recommendation Algorithm</h4>
+    <p>
+        NextTrack uses a <strong>hybrid recommendation system</strong> that combines content-based filtering
+        with external data enrichment. Here's exactly how it works:
+    </p>
+
+    <h4 style="color: var(--primary-color); margin: 1.25rem 0 0.5rem; font-size: 0.95rem;">
+        <i class="fa-solid fa-vector-square"></i> Step 1: Vector Space Model
+    </h4>
+    <p style="margin-bottom: 0.5rem;">
+        Each track is represented as a <strong>5-dimensional feature vector</strong>:
+    </p>
+    <ul style="margin: 0 0 0.75rem 1.5rem; color: var(--text-muted); line-height: 1.6; font-size: 0.9rem;">
+        <li><strong>Energy</strong> (0-1) - Intensity and activity level</li>
+        <li><strong>Valence</strong> (0-1) - Musical positiveness/mood</li>
+        <li><strong>Danceability</strong> (0-1) - Rhythm and beat strength</li>
+        <li><strong>Acousticness</strong> (0-1) - Acoustic vs electronic sound</li>
+        <li><strong>Tempo</strong> (BPM/200) - Normalized beats per minute</li>
+    </ul>
+    <p>
+        Your playlist's <strong>centroid</strong> (average vector) represents your taste profile.
+        We rank candidates by <strong>Euclidean distance</strong> - tracks closest to your centroid score highest.
+    </p>
+
+    <h4 style="color: var(--primary-color); margin: 1.25rem 0 0.5rem; font-size: 0.95rem;">
+        <i class="fa-solid fa-diagram-project"></i> Step 2: External Data Enhancements
+    </h4>
+    <p style="margin-bottom: 0.5rem;">
+        After initial scoring, we apply <strong>multiplicative boosts</strong> based on artist relationships:
+    </p>
+    <ul style="margin: 0 0 0.75rem 1.5rem; color: var(--text-muted); line-height: 1.6; font-size: 0.9rem;">
+        <li><strong>Similar Artists (+20%)</strong> - From Last.fm's collaborative filtering. If fans of your playlist artists also like Artist X, tracks by X get boosted.</li>
+        <li><strong>Influence Chain (+15%)</strong> - From Wikidata P737 property. If The Beatles influenced your playlist, tracks by Elvis, Buddy Holly, Chuck Berry get boosted.</li>
+        <li><strong>Tag Matching (+8%)</strong> - From Last.fm community tags. Matching genre/mood tags (e.g., "british invasion", "psychedelic") provide smaller boosts.</li>
+    </ul>
+
+    <h4 style="color: var(--primary-color); margin: 1.25rem 0 0.5rem; font-size: 0.95rem;">
+        <i class="fa-solid fa-graduation-cap"></i> Step 3: Preference Learning
+    </h4>
+    <p>
+        Your <strong>like/dislike feedback</strong> trains categorical preferences. The system learns which
+        countries, decades, artist types (solo/group), and genres you prefer - then adjusts future
+        recommendation scores accordingly. This learning persists across your session.
+    </p>
+
+    <h4 style="color: var(--primary-color); margin: 1.25rem 0 0.5rem; font-size: 0.95rem;">
+        <i class="fa-solid fa-filter"></i> Step 4: Optional Filters
+    </h4>
+    <p>
+        Apply hard filters powered by MusicBrainz metadata: <strong>Country</strong> (artist origin),
+        <strong>Decade</strong> (formation year), <strong>Artist Type</strong> (solo artist vs group).
+        Filters exclude non-matching tracks entirely.
+    </p>
+    </div><!-- end collapsible content -->
+</div>
+
+<div class="info-box" style="margin-bottom: 1.5rem;">
+    <h3 style="cursor: pointer;" onclick="var c=this.nextElementSibling;c.style.display=c.style.display==='none'?'block':'none';this.querySelector('.toggle-icon').classList.toggle('expanded');">
+        <i class="fa-solid fa-database"></i> Data Sources
+        <i class="fa-solid fa-chevron-down toggle-icon" style="margin-left: auto; font-size: 0.8rem; transition: transform 0.3s; color: var(--text-muted);"></i>
+    </h3>
+    <div style="display: none;">
+    <table style="width: 100%; font-size: 0.9rem; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid var(--border-color);">
+            <td style="padding: 0.5rem 0; color: var(--primary-color); font-weight: 600; width: 140px;">Kaggle Dataset</td>
+            <td style="padding: 0.5rem 0; color: var(--text-muted);">30,000+ tracks with pre-analyzed audio features (our recommendation corpus)</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border-color);">
+            <td style="padding: 0.5rem 0; color: var(--primary-color); font-weight: 600;">Spotify API</td>
+            <td style="padding: 0.5rem 0; color: var(--text-muted);">Live search, track metadata, audio feature analysis for new tracks</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border-color);">
+            <td style="padding: 0.5rem 0; color: var(--primary-color); font-weight: 600;">MusicBrainz</td>
+            <td style="padding: 0.5rem 0; color: var(--text-muted);">Artist country, type (person/group), formation year, genre tags</td>
+        </tr>
+        <tr style="border-bottom: 1px solid var(--border-color);">
+            <td style="padding: 0.5rem 0; color: var(--primary-color); font-weight: 600;">Wikidata</td>
+            <td style="padding: 0.5rem 0; color: var(--text-muted);">Artist descriptions, influence relationships (P737 "influenced by" property)</td>
+        </tr>
+        <tr>
+            <td style="padding: 0.5rem 0; color: var(--primary-color); font-weight: 600;">Last.fm</td>
+            <td style="padding: 0.5rem 0; color: var(--text-muted);">Similar artists (collaborative filtering), community tags, listener counts</td>
+        </tr>
+    </table>
+    </div><!-- end collapsible content -->
+</div>
+
+<div class="info-box">
+    <h3 style="cursor: pointer;" onclick="var c=this.nextElementSibling;c.style.display=c.style.display==='none'?'block':'none';this.querySelector('.toggle-icon').classList.toggle('expanded');">
+        <i class="fa-solid fa-server"></i> Architecture
+        <i class="fa-solid fa-chevron-down toggle-icon" style="margin-left: auto; font-size: 0.8rem; transition: transform 0.3s; color: var(--text-muted);"></i>
+    </h3>
+    <div style="display: none;">
+    <p>
+        <strong>Stateless API</strong> - No user accounts or tracking. Your playlist is stored in your
+        browser session (7-day expiry). Provide track IDs, receive recommendations.
+    </p>
+    <p>
+        <strong>Live External Data</strong> - Artist metadata is fetched on-demand from MusicBrainz,
+        Wikidata, and Last.fm. Responses are cached in <strong>Redis</strong> with 24-hour TTL to
+        balance freshness with API rate limits.
+    </p>
+    <p>
+        <strong>Tech Stack</strong> - Django + Django REST Framework, PostgreSQL, Redis, Celery,
+        WebSockets (Django Channels), Docker Compose.
+    </p>
+    </div><!-- end collapsible content -->
+</div>
+
+<style>
+.toggle-icon.expanded { transform: rotate(180deg); }
+</style>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+/**
+ * WebSocket-powered Live Search
+ *
+ * Demonstrates Advanced Web Development by implementing real-time
+ * communication to eliminate perceived search latency.
+ *
+ * UX Design:
+ * - WebSocket indicator hidden by default (no "Connecting..." visible)
+ * - Only shows status during active search operations
+ * - Graceful fallback to HTTP if WebSocket unavailable
+ */
+(function() {
+    'use strict';
+
+    // DOM Elements
+    const searchForm = document.getElementById('search-form');
+    const searchInput = document.getElementById('search-input');
+    const searchBtn = document.getElementById('search-btn');
+    const statusPanel = document.getElementById('search-status');
+    const statusMessage = document.getElementById('status-message');
+    const statusProgress = document.getElementById('status-progress');
+    const statusDetail = document.getElementById('status-detail');
+    const resultsContainer = document.getElementById('results-container');
+    const wsIndicator = document.querySelector('.ws-indicator');
+    const wsStatusDot = document.getElementById('ws-status-dot');
+    const wsStatusText = document.getElementById('ws-status-text');
+    // Uses global loading overlay from base.html via NextTrackLoadingOverlay
+
+    // WebSocket connection
+    let socket = null;
+    let isConnected = false;
+    let isSearching = false;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+
+    // CSRF token for form submissions
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+
+    /**
+     * Initialize WebSocket connection
+     */
+    function connectWebSocket() {
+        // Determine WebSocket protocol (ws:// or wss://)
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/search/`;
+
+        try {
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = function() {
+                if (window.NEXTTRACK_DEBUG) console.log('WebSocket connected');
+                isConnected = true;
+                reconnectAttempts = 0;
+                // Don't show indicator on connect - wait for ready message
+            };
+
+            socket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+
+            socket.onclose = function(event) {
+                if (window.NEXTTRACK_DEBUG) console.log('WebSocket disconnected:', event.code);
+                isConnected = false;
+                hideWsIndicator();
+
+                // Attempt reconnection silently
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    setTimeout(connectWebSocket, 2000 * reconnectAttempts);
+                } else {
+                    // Show toast after all retries exhausted (item 7.1)
+                    showToast('Live search unavailable. Using standard search instead.', 'warning');
+                }
+            };
+
+            socket.onerror = function(error) {
+                if (window.NEXTTRACK_DEBUG) console.error('WebSocket error:', error);
+                isConnected = false;
+            };
+
+        } catch (e) {
+            if (window.NEXTTRACK_DEBUG) console.error('WebSocket connection failed:', e);
+        }
+    }
+
+    /**
+     * Show WebSocket indicator with specific status
+     */
+    function showWsIndicator(status, text) {
+        wsIndicator.classList.add('visible');
+        wsStatusDot.className = 'ws-indicator-dot';
+
+        switch(status) {
+            case 'connected':
+                wsStatusDot.classList.add('connected');
+                wsStatusText.textContent = text || 'Live';
+                break;
+            case 'searching':
+                wsStatusDot.classList.add('searching');
+                wsStatusText.textContent = text || 'Searching...';
+                break;
+            case 'connecting':
+                wsStatusDot.classList.add('connecting');
+                wsStatusText.textContent = text || 'Connecting...';
+                break;
+        }
+    }
+
+    /**
+     * Hide WebSocket indicator
+     */
+    function hideWsIndicator() {
+        wsIndicator.classList.remove('visible');
+    }
+
+    /**
+     * Show loading overlay with search query (delegates to global overlay)
+     */
+    function showLoadingOverlay(query) {
+        if (window.NextTrackLoadingOverlay) {
+            window.NextTrackLoadingOverlay.showSearch(query);
+        }
+    }
+
+    /**
+     * Hide loading overlay (delegates to global overlay)
+     */
+    function hideLoadingOverlay() {
+        if (window.NextTrackLoadingOverlay) {
+            window.NextTrackLoadingOverlay.hideSearch();
+        }
+    }
+
+    /**
+     * Handle incoming WebSocket messages
+     */
+    function handleWebSocketMessage(data) {
+        switch(data.type) {
+            case 'ready':
+                // Server confirms connection is ready - don't show anything yet
+                if (window.NEXTTRACK_DEBUG) console.log('WebSocket ready:', data.message);
+                break;
+
+            case 'status':
+                // Show indicator during search with progress
+                showWsIndicator('searching', 'Searching...');
+                showStatus(data.message, data.progress, data.detail);
+                break;
+
+            case 'results':
+                // Search complete - hide everything
+                isSearching = false;
+                searchBtn.classList.remove('loading');
+                hideLoadingOverlay();
+                hideStatus();
+                hideWsIndicator();
+                renderResults(data);
+                break;
+
+            case 'error':
+                // Error - hide status and indicator
+                isSearching = false;
+                searchBtn.classList.remove('loading');
+                hideLoadingOverlay();
+                hideStatus();
+                hideWsIndicator();
+                showError(data.message);
+                break;
+        }
+    }
+
+    /**
+     * Show search status panel with progress
+     */
+    function showStatus(message, progress, detail) {
+        statusPanel.classList.add('active');
+        statusMessage.textContent = message;
+        statusProgress.style.width = `${progress || 0}%`;
+        statusDetail.textContent = detail || '';
+    }
+
+    /**
+     * Hide search status panel
+     */
+    function hideStatus() {
+        statusPanel.classList.remove('active');
+    }
+
+    /**
+     * Show error message
+     */
+    function showError(message) {
+        resultsContainer.innerHTML = `
+            <div class="results-section">
+                <div class="no-results" style="color: #ef4444;">
+                    <i class="fa-solid fa-exclamation-circle"></i> ${message}
+                </div>
+            </div>
+        `;
+    }
+
+    /**
+     * Render search results from WebSocket response
+     */
+    function renderResults(data) {
+        const query = data.query;
+        const tracks = data.tracks;
+        const count = data.count;
+        const localCount = data.local_count;
+        const spotifyCount = data.spotify_count;
+
+        if (tracks.length === 0) {
+            const wsStatus = isConnected ? '<span style="color: var(--color-success);">Connected</span>' : '<span style="color: var(--text-dim);">Offline</span>';
+            resultsContainer.innerHTML = `
+                <div class="results-section">
+                    <h2>Search Results for "${escapeHtml(query)}"</h2>
+                    <div class="no-results">
+                        <p>No tracks found for "${escapeHtml(query)}"</p>
+                        <p style="font-size: 0.9rem; margin-top: 0.75rem;">Try: <strong>Beatles</strong>, <strong>Radiohead</strong>, or <strong>Daft Punk</strong></p>
+                        <p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 0.5rem;">30,000+ catalog tracks + Spotify live search. WebSocket: ${wsStatus}</p>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        let html = `
+            <div class="results-section">
+                <h2>Search Results for "${escapeHtml(query)}"</h2>
+                <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
+                    Found ${count} tracks (${localCount} local, ${spotifyCount} from Spotify)
+                </p>
+                <div class="track-grid" id="track-grid">
+        `;
+
+        tracks.forEach(track => {
+            // Generate source badge HTML based on data provenance
+            let sourceBadgeHtml = '';
+            switch(track.source_badge) {
+                case 'live':
+                    sourceBadgeHtml = `
+                        <span class="source-badge live" title="Freshly fetched from Spotify API">
+                            <i class="fa-solid fa-bolt"></i> Live
+                        </span>`;
+                    break;
+                case 'catalog':
+                    sourceBadgeHtml = `
+                        <span class="source-badge catalog" title="From local database">
+                            <i class="fa-solid fa-database"></i> Catalog
+                        </span>`;
+                    break;
+                case 'limited':
+                    sourceBadgeHtml = `
+                        <span class="source-badge limited" title="Limited audio analysis - using default values">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Limited
+                        </span>`;
+                    break;
+                case 'pending':
+                    sourceBadgeHtml = `
+                        <span class="source-badge pending" title="Audio analysis pending">
+                            <i class="fa-solid fa-clock"></i> Analyzing
+                        </span>`;
+                    break;
+            }
+
+            // Generate genre tags HTML
+            let genreTagsHtml = '';
+            if (track.genres && track.genres.length > 0) {
+                genreTagsHtml = '<div class="genre-tags">' +
+                    track.genres.map(g => `<span class="genre-tag">${escapeHtml(g)}</span>`).join('') +
+                    '</div>';
+            }
+
+            html += `
+                <div class="track-card">
+                    <div class="track-info">
+                        <div class="track-header">
+                            <div class="track-title-wrap">
+                                <h3 class="track-title">${escapeHtml(track.title)}</h3>
+                            </div>
+                            <div class="track-badges">
+                                ${sourceBadgeHtml}
+                            </div>
+                        </div>
+                        <p class="track-artist">${escapeHtml(track.artist_name)}</p>
+
+                        ${genreTagsHtml}
+
+                        <div class="popularity-indicator">
+                            <span class="popularity-label">
+                                <i class="fa-solid fa-fire"></i> Popularity
+                            </span>
+                            <div class="popularity-bar">
+                                <div class="popularity-fill" style="width: ${track.popularity}%"></div>
+                            </div>
+                            <span class="popularity-label">${track.popularity}</span>
+                        </div>
+
+                        <div class="track-features-grid">
+                            <div class="feature-item energy" title="Energy: Intensity and activity level (0-1)">
+                                <i class="fa-solid fa-bolt"></i>
+                                <span class="label">Energy</span>
+                                <span class="value">${track.energy.toFixed(2)}</span>
+                            </div>
+                            <div class="feature-item valence" title="Valence: Musical positiveness/mood (0-1)">
+                                <i class="fa-solid fa-face-smile"></i>
+                                <span class="label">Mood</span>
+                                <span class="value">${track.valence.toFixed(2)}</span>
+                            </div>
+                            <div class="feature-item dance" title="Danceability: Rhythm and beat strength (0-1)">
+                                <i class="fa-solid fa-music"></i>
+                                <span class="label">Dance</span>
+                                <span class="value">${track.danceability.toFixed(2)}</span>
+                            </div>
+                            <div class="feature-item acoustic" title="Acousticness: Acoustic vs electronic (0-1)">
+                                <i class="fa-solid fa-guitar"></i>
+                                <span class="label">Acoustic</span>
+                                <span class="value">${track.acousticness.toFixed(2)}</span>
+                            </div>
+                            <div class="feature-item tempo" title="Tempo: Beats per minute">
+                                <i class="fa-solid fa-gauge-high"></i>
+                                <span class="label">BPM</span>
+                                <span class="value">${Math.round(track.tempo)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="track-actions">
+                        <button type="button" class="btn btn-small btn-add" data-track-id="${track.id}">
+                            <i class="fa-solid fa-plus"></i> Add
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        html += '</div></div>';
+        resultsContainer.innerHTML = html;
+
+        // Announce results to screen readers (item 1.3)
+        if (window.announceToScreenReader) {
+            window.announceToScreenReader('Search complete. Found ' + count + ' tracks for "' + query + '"');
+        }
+
+        // Update URL without page reload
+        const newUrl = `/?q=${encodeURIComponent(query)}`;
+        window.history.pushState({ query: query }, '', newUrl);
+    }
+
+    /**
+     * Escape HTML to prevent XSS
+     */
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Perform search via WebSocket
+     */
+    function performWebSocketSearch(query) {
+        if (!isConnected || !socket) {
+            // Fallback to traditional form submission
+            searchForm.submit();
+            return;
+        }
+
+        isSearching = true;
+
+        // Show indicator immediately when search starts
+        showWsIndicator('searching', 'Initiating search...');
+        showStatus('Initiating search...', 5);
+
+        socket.send(JSON.stringify({
+            type: 'search',
+            query: query
+        }));
+
+        // Safety timeout: if search takes longer than 30 seconds, reset UI
+        setTimeout(function() {
+            if (isSearching) {
+                isSearching = false;
+                searchBtn.classList.remove('loading');
+                hideLoadingOverlay();
+                hideStatus();
+                hideWsIndicator();
+                showError('Search timed out. Please try again.');
+            }
+        }, 30000);
+    }
+
+    /**
+     * Handle form submission
+     */
+    searchForm.addEventListener('submit', function(e) {
+        const query = searchInput.value.trim();
+
+        if (query.length < 2) {
+            return; // Let the browser handle validation
+        }
+
+        // Always show loading indicator immediately on submit
+        searchBtn.classList.add('loading');
+        showLoadingOverlay(query);
+        showWsIndicator('searching', 'Searching...');
+        showStatus(`Searching for "${query}"...`, 10);
+
+        if (isConnected) {
+            e.preventDefault();
+            performWebSocketSearch(query);
+        } else {
+            // Store search state for HTTP fallback - overlay will persist across page reload
+            sessionStorage.setItem('searchInProgress', query);
+        }
+    });
+
+    // Initialize WebSocket connection on page load (silently)
+    connectWebSocket();
+
+    // Ensure search UI is in ready state on page load (reset from any prior state)
+    searchBtn.classList.remove('loading');
+    hideStatus();
+    hideWsIndicator();
+
+    // Clear loading state once page is fully loaded (for HTTP fallback)
+    window.addEventListener('load', function() {
+        sessionStorage.removeItem('searchInProgress');
+        // Small delay to ensure content is visible before hiding overlay
+        setTimeout(function() {
+            hideLoadingOverlay();
+        }, 100);
+    });
+
+})();
+
+// Initialize shared modules from common.js
+initDuplicateModal();
+initAjaxFormInterceptor();
+
+// Handle WebSocket-rendered add buttons via event delegation
+document.addEventListener('click', function(e) {
+    var button = e.target.closest('.btn-add[data-track-id]');
+    if (button && !button.closest('form.inline-form')) {
+        addToPlaylist(button.dataset.trackId, button);
+    }
+});
+
+// ============================
+// Show More Results (Pagination)
+// ============================
+(function() {
+    var showMoreBtn = document.getElementById('btn-show-more');
+    if (!showMoreBtn) return;
+
+    showMoreBtn.addEventListener('click', function() {
+        var offset = parseInt(showMoreBtn.dataset.offset) || 0;
+        var query = showMoreBtn.dataset.query || '';
+        if (!query) return;
+
+        showMoreBtn.classList.add('loading');
+        showMoreBtn.disabled = true;
+
+        // If WebSocket is connected, use it for pagination
+        if (typeof socket !== 'undefined' && socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+                type: 'search',
+                query: query,
+                offset: offset
+            }));
+            // The WebSocket message handler will append results
+            // We store the callback to handle appending vs replacing
+            window._appendNextResults = true;
+            showMoreBtn.classList.remove('loading');
+            showMoreBtn.disabled = false;
+            return;
+        }
+
+        // Fallback: HTTP request for more results
+        fetch('/?q=' + encodeURIComponent(query) + '&offset=' + offset + '&format=json', {
+            credentials: 'same-origin'
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            showMoreBtn.classList.remove('loading');
+            var trackGrid = document.getElementById('track-grid');
+            if (!trackGrid || !data.tracks || data.tracks.length === 0) {
+                showMoreBtn.textContent = 'No more results';
+                showMoreBtn.disabled = true;
+                return;
+            }
+
+            var csrfToken = window.getCsrfToken ? window.getCsrfToken() : '';
+
+            data.tracks.forEach(function(track) {
+                var card = document.createElement('div');
+                card.className = 'track-card';
+                card.innerHTML =
+                    '<div class="track-info">' +
+                    '<div class="track-header"><div class="track-title-wrap"><h3 class="track-title">' + escapeHtml(track.title) + '</h3></div></div>' +
+                    '<p class="track-artist">' + escapeHtml(track.artist_name) + '</p>' +
+                    '<div class="track-features-grid">' +
+                    '<div class="feature-item energy"><i class="fa-solid fa-bolt"></i><span class="label">Energy</span><span class="value">' + (track.energy || 0).toFixed(2) + '</span></div>' +
+                    '<div class="feature-item valence"><i class="fa-solid fa-face-smile"></i><span class="label">Mood</span><span class="value">' + (track.valence || 0).toFixed(2) + '</span></div>' +
+                    '<div class="feature-item dance"><i class="fa-solid fa-music"></i><span class="label">Dance</span><span class="value">' + (track.danceability || 0).toFixed(2) + '</span></div>' +
+                    '<div class="feature-item acoustic"><i class="fa-solid fa-guitar"></i><span class="label">Acoustic</span><span class="value">' + (track.acousticness || 0).toFixed(2) + '</span></div>' +
+                    '<div class="feature-item tempo"><i class="fa-solid fa-gauge-high"></i><span class="label">BPM</span><span class="value">' + Math.round(track.tempo || 0) + '</span></div>' +
+                    '</div></div>' +
+                    '<div class="track-actions">' +
+                    '<form method="post" action="/builder/" class="inline-form">' +
+                    '<input type="hidden" name="csrfmiddlewaretoken" value="' + csrfToken + '">' +
+                    '<input type="hidden" name="action" value="add">' +
+                    '<input type="hidden" name="track_id" value="' + track.id + '">' +
+                    '<input type="hidden" name="next" value="/?q=' + encodeURIComponent(query) + '">' +
+                    '<button type="submit" class="btn btn-small btn-add"><i class="fa-solid fa-plus"></i> Add</button>' +
+                    '</form></div>';
+                trackGrid.appendChild(card);
+            });
+
+            // Update offset
+            var newOffset = offset + data.tracks.length;
+            showMoreBtn.dataset.offset = newOffset;
+            showMoreBtn.disabled = false;
+
+            if (data.tracks.length < 20) {
+                showMoreBtn.innerHTML = '<span class="btn-show-more-text">No more results</span>';
+                showMoreBtn.disabled = true;
+            }
+        })
+        .catch(function() {
+            showMoreBtn.classList.remove('loading');
+            showMoreBtn.disabled = false;
+            if (window.showToast) showToast('Failed to load more results', 'error');
+        });
+    });
+})();
+</script>
+{% endblock extra_scripts %}

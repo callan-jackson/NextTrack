@@ -1,0 +1,63 @@
+[project]
+name = "nexttrack"
+version = "1.0.0"
+description = "Music recommendation engine using content-based filtering"
+requires-python = ">=3.10"
+
+# =============================================================================
+# pytest
+# =============================================================================
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "next_track.settings"
+python_files = ["test_*.py"]
+python_classes = ["*TestCase"]
+python_functions = ["test_*"]
+addopts = [
+    "--tb=short",
+    "--strict-markers",
+    "-q",
+    "-m", "not slow",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+# NOTE: Tests use an in-memory SQLite database by default when running under
+# pytest-django. If your project relies on PostgreSQL-specific features, set
+# DATABASES in a test-specific settings file or override via the
+# django_db_setup fixture.
+
+# =============================================================================
+# coverage
+# =============================================================================
+[tool.coverage.run]
+source = ["catalog"]
+omit = [
+    "catalog/migrations/*",
+    "catalog/tests/*",
+    "catalog/tests.py",
+]
+
+[tool.coverage.report]
+fail_under = 70
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.",
+    "raise NotImplementedError",
+]
+
+# =============================================================================
+# ruff
+# =============================================================================
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["catalog", "next_track"]

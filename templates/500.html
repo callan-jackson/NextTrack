@@ -1,0 +1,295 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Error - NextTrack</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'images/favicon.svg' %}">
+    <meta name="theme-color" content="#1DB954">
+    <style>
+        :root {
+            --primary-color: #1DB954;
+            --secondary-color: #191414;
+            --bg-color: #121212;
+            --bg-card: #181818;
+            --text-color: #ffffff;
+            --text-muted: #b3b3b3;
+            --border-color: #282828;
+            --danger-color: #e74c3c;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .error-container {
+            text-align: center;
+            max-width: 500px;
+        }
+
+        .error-icon {
+            font-size: 6rem;
+            margin-bottom: 1.5rem;
+            color: var(--danger-color);
+            opacity: 0.8;
+        }
+
+        .error-code {
+            font-size: 5rem;
+            font-weight: 700;
+            color: var(--danger-color);
+            margin-bottom: 0.5rem;
+            letter-spacing: -2px;
+        }
+
+        .error-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .error-message {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .error-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.875rem 1.75rem;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            color: var(--secondary-color);
+        }
+
+        .btn-primary:hover {
+            background: #1ed760;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(29, 185, 84, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border-color);
+            transform: translateY(-2px);
+        }
+
+        .btn:focus-visible {
+            outline: 3px solid var(--primary-color);
+            outline-offset: 3px;
+        }
+
+        .status-box {
+            margin-top: 3rem;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .status-box h2 {
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--danger-color);
+        }
+
+        .status-dot.checking {
+            background: #f59e0b;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .btn:hover {
+                transform: none;
+            }
+            .status-dot.checking {
+                animation: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="error-container" role="main">
+        <div class="error-icon" aria-hidden="true">
+            <svg width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+            </svg>
+        </div>
+        <h1 class="error-code">500</h1>
+        <p class="error-title">Something Went Wrong</p>
+        <p class="error-message">
+            Our recommendation engine hit a sour note.
+            We're working on getting things back in harmony.
+            Please try again in a moment.
+        </p>
+        <div class="error-actions">
+            <a href="/" class="btn btn-primary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M3 12l9-9 9 9M5 10v10a1 1 0 001 1h3a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1h3a1 1 0 001-1V10"></path>
+                </svg>
+                Go Home
+            </a>
+            <button id="retry-btn" class="btn btn-secondary">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M23 4v6h-6M1 20v-6h6"></path>
+                    <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"></path>
+                </svg>
+                <span id="retry-text">Check Again</span>
+            </button>
+        </div>
+        <p id="last-check" style="margin-top: 1rem; font-size: 0.8rem; color: var(--text-muted);"></p>
+
+        <div class="status-box">
+            <h2>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 6v6l4 2"></path>
+                </svg>
+                System Status
+            </h2>
+            <div class="status-item">
+                <span class="status-dot checking" aria-hidden="true"></span>
+                <span>Checking services...</span>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        (function() {
+            var retryBtn = document.getElementById('retry-btn');
+            var retryText = document.getElementById('retry-text');
+            var lastCheckEl = document.getElementById('last-check');
+            var retryCount = 0;
+            var maxRetries = 3;
+            var baseDelay = 5000; // 5s, 10s, 20s (exponential backoff over ~30s)
+            var autoRetryTimer = null;
+
+            function updateLastCheck() {
+                var now = new Date();
+                lastCheckEl.textContent = 'Last checked: ' + now.toLocaleTimeString();
+            }
+
+            function checkHealth() {
+                var statusBox = document.querySelector('.status-box');
+                statusBox.innerHTML = '<h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg> System Status</h2><div class="status-item"><span class="status-dot checking" aria-hidden="true"></span><span>Checking services...</span></div>';
+
+                fetch('/health/')
+                    .then(function(response) { return response.json(); })
+                    .then(function(data) {
+                        var statusHTML = '<h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg> System Status</h2>';
+                        var allUp = true;
+                        for (var service in (data.services || {})) {
+                            var status = data.services[service];
+                            var isUp = status === 'up';
+                            if (!isUp) allUp = false;
+                            statusHTML += '<div class="status-item"><span class="status-dot" style="background: ' + (isUp ? '#1DB954' : '#e74c3c') + '" aria-hidden="true"></span><span>' + service.charAt(0).toUpperCase() + service.slice(1) + ': ' + (isUp ? 'Operational' : 'Issue Detected') + '</span></div>';
+                        }
+                        statusBox.innerHTML = statusHTML;
+                        updateLastCheck();
+                        if (allUp) {
+                            retryText.textContent = 'Server is back! Reload';
+                            retryBtn.onclick = function() { location.reload(); };
+                        }
+                    })
+                    .catch(function() {
+                        statusBox.innerHTML = '<h2><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v6l4 2"></path></svg> System Status</h2><div class="status-item"><span class="status-dot" style="background: #e74c3c" aria-hidden="true"></span><span>Server: Temporarily Unavailable</span></div>';
+                        updateLastCheck();
+                    });
+            }
+
+            function autoRetry() {
+                if (retryCount >= maxRetries) {
+                    retryText.textContent = 'Check Again';
+                    retryBtn.disabled = false;
+                    return;
+                }
+                retryCount++;
+                var delay = baseDelay * Math.pow(2, retryCount - 1);
+                retryText.textContent = 'Retrying (' + retryCount + '/' + maxRetries + ')...';
+                retryBtn.disabled = true;
+                autoRetryTimer = setTimeout(function() {
+                    checkHealth();
+                    if (retryCount < maxRetries) {
+                        autoRetry();
+                    } else {
+                        retryText.textContent = 'Check Again';
+                        retryBtn.disabled = false;
+                    }
+                }, delay);
+            }
+
+            retryBtn.addEventListener('click', function() {
+                retryCount = 0;
+                checkHealth();
+                autoRetry();
+            });
+
+            // Initial health check and auto-retry
+            checkHealth();
+            autoRetry();
+        })();
+    </script>
+</body>
+</html>

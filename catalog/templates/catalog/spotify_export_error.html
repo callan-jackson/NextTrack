@@ -1,0 +1,160 @@
+{% extends 'catalog/base.html' %}
+
+{% block title %}Export Failed{% endblock %}
+
+{% block meta_description %}There was an issue exporting your recommendations to Spotify. Try again or check troubleshooting steps.{% endblock %}
+
+{% block content %}
+<div class="spotify-export-result error">
+    <div class="export-icon">
+        <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+    </div>
+
+    <h1>Export Failed</h1>
+
+    <p class="export-message">
+        {{ message|default:"We couldn't create your Spotify playlist." }}
+    </p>
+
+    {% if error %}
+    <div class="error-details">
+        <p><strong>Error:</strong> {{ error }}</p>
+    </div>
+    {% endif %}
+
+    <div class="export-actions">
+        <a href="{% url 'results' %}" class="btn-primary">
+            <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+            Back to Recommendations
+        </a>
+
+        <a href="{% url 'spotify_export' %}" class="btn-secondary">
+            <i class="fa-solid fa-rotate" aria-hidden="true"></i>
+            Try Again
+        </a>
+    </div>
+
+    <div class="help-section">
+        <h3>Troubleshooting</h3>
+        <ul>
+            <li>Make sure you have a Spotify account</li>
+            <li>Check that you granted permission to create playlists</li>
+            <li>Try logging out of Spotify and back in</li>
+            <li>If the problem persists, contact support</li>
+        </ul>
+    </div>
+</div>
+
+<style>
+.spotify-export-result {
+    max-width: 500px;
+    margin: 3rem auto;
+    text-align: center;
+    padding: 2rem;
+}
+
+.export-icon {
+    font-size: 4rem;
+    margin-bottom: 1.5rem;
+}
+
+.spotify-export-result.error .export-icon {
+    color: #e74c3c;
+}
+
+.spotify-export-result h1 {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    color: var(--text-color, #fff);
+}
+
+.export-message {
+    font-size: 1.1rem;
+    color: var(--text-muted, #b3b3b3);
+    margin-bottom: 1.5rem;
+}
+
+.error-details {
+    background: rgba(231, 76, 60, 0.1);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 2rem;
+    text-align: left;
+}
+
+.error-details p {
+    margin: 0;
+    color: #e74c3c;
+    font-size: 0.9rem;
+}
+
+.export-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.btn-primary, .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem 2rem;
+    border-radius: 50px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: var(--primary-color, #1DB954);
+    color: var(--secondary-color, #191414);
+}
+
+.btn-primary:hover {
+    background: #1ed760;
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background: var(--bg-card, #282828);
+    color: var(--text-color, #fff);
+    border: 1px solid var(--border-color, #333);
+}
+
+.btn-secondary:hover {
+    background: var(--border-color, #333);
+}
+
+.help-section {
+    background: var(--bg-card, #181818);
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: left;
+    border: 1px solid var(--border-color, #282828);
+}
+
+.help-section h3 {
+    font-size: 1rem;
+    margin: 0 0 1rem 0;
+    color: var(--text-color, #fff);
+}
+
+.help-section ul {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.help-section li {
+    color: var(--text-muted, #b3b3b3);
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.help-section li:last-child {
+    margin-bottom: 0;
+}
+</style>
+{% endblock %}

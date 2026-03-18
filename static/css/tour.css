@@ -1,0 +1,16 @@
+/**
+ * Tour CSS - minimal styles for tour elements
+ * Most styling is done inline in tour.js for simplicity
+ */
+
+/* Ensure tour elements are above everything */
+#tour-backdrop,
+#tour-spotlight,
+#tour-tooltip {
+    font-family: inherit;
+}
+
+/* Smooth button hover effects */
+#tour-tooltip button:hover {
+    filter: brightness(1.1);
+}

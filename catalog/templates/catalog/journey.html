@@ -1,0 +1,161 @@
+{% extends 'catalog/base.html' %}
+
+{% block title %}Mood Journey{% endblock %}
+
+{% block extra_head %}
+<style>
+    .journey-form { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; }
+    .mood-panel { background: var(--bg-card, #1a1a2e); border-radius: 12px; padding: 1.5rem; border: 1px solid var(--border-color, #333); }
+    .mood-panel h3 { margin: 0 0 1rem; color: var(--primary-color, #1db954); }
+    .slider-group { margin-bottom: 1rem; }
+    .slider-group label { display: flex; justify-content: space-between; margin-bottom: 0.3rem; font-size: 0.9rem; color: var(--text-muted, #888); }
+    .slider-group input[type="range"] { width: 100%; accent-color: var(--primary-color, #1db954); }
+    .steps-control { grid-column: 1 / -1; text-align: center; margin: 1rem 0; }
+    .steps-control label { color: var(--text-muted, #888); margin-right: 0.5rem; }
+    .steps-control select { background: var(--bg-card, #1a1a2e); color: var(--text-color, #fff); border: 1px solid var(--border-color, #333); border-radius: 6px; padding: 0.4rem 0.8rem; }
+    .journey-btn { grid-column: 1 / -1; background: var(--primary-color, #1db954); color: var(--secondary-color, #191414); border: none; padding: 0.8rem 2rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+    .journey-btn:hover { opacity: 0.9; }
+    .journey-timeline { display: flex; flex-direction: column; gap: 1rem; margin-top: 2rem; }
+    .journey-step { display: flex; align-items: center; gap: 1rem; background: var(--bg-card, #1a1a2e); border-radius: 12px; padding: 1rem 1.5rem; border: 1px solid var(--border-color, #333); position: relative; }
+    .step-number { width: 36px; height: 36px; border-radius: 50%; background: var(--primary-color, #1db954); color: var(--secondary-color, #191414); display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+    .step-info { flex: 1; }
+    .step-info h4 { margin: 0 0 0.25rem; color: var(--text-color, #fff); }
+    .step-info p { margin: 0; font-size: 0.85rem; color: var(--text-muted, #888); }
+    .step-features { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .feature-pill { font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: rgba(29,185,84,0.15); color: var(--primary-color, #1db954); }
+    .journey-arrow { text-align: center; color: var(--text-muted, #888); font-size: 1.2rem; }
+    .presets { margin-bottom: 1.5rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .preset-btn { background: var(--bg-card, #1a1a2e); color: var(--text-color, #fff); border: 1px solid var(--border-color, #333); padding: 0.5rem 1rem; border-radius: 20px; cursor: pointer; font-size: 0.85rem; }
+    .preset-btn:hover { border-color: var(--primary-color, #1db954); }
+    @media (max-width: 768px) { .journey-form { grid-template-columns: 1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Mood Journey</h1>
+<p style="color: var(--text-muted, #888); margin-bottom: 1.5rem;">Create a playlist that smoothly transitions from one mood to another.</p>
+
+<div class="presets">
+    <button type="button" class="preset-btn" onclick="applyPreset('morning')">Morning Wake-Up</button>
+    <button type="button" class="preset-btn" onclick="applyPreset('workout')">Workout Build-Up</button>
+    <button type="button" class="preset-btn" onclick="applyPreset('wind_down')">Evening Wind-Down</button>
+    <button type="button" class="preset-btn" onclick="applyPreset('party')">Party Starter</button>
+</div>
+
+<form method="post" class="journey-form">
+    {% csrf_token %}
+    <div class="mood-panel">
+        <h3><i class="fa-solid fa-sun" aria-hidden="true"></i> Starting Mood</h3>
+        <div class="slider-group">
+            <label>Valence (Happiness) <span id="sv-val">0.3</span></label>
+            <input type="range" name="start_valence" id="start_valence" min="0" max="1" step="0.05" value="{{ start.valence|default:'0.3' }}" oninput="document.getElementById('sv-val').textContent=this.value">
+        </div>
+        <div class="slider-group">
+            <label>Energy <span id="se-val">0.3</span></label>
+            <input type="range" name="start_energy" id="start_energy" min="0" max="1" step="0.05" value="{{ start.energy|default:'0.3' }}" oninput="document.getElementById('se-val').textContent=this.value">
+        </div>
+        <div class="slider-group">
+            <label>Danceability <span id="sd-val">0.4</span></label>
+            <input type="range" name="start_danceability" id="start_danceability" min="0" max="1" step="0.05" value="{{ start.danceability|default:'0.4' }}" oninput="document.getElementById('sd-val').textContent=this.value">
+        </div>
+        <div class="slider-group">
+            <label>Acousticness <span id="sa-val">0.6</span></label>
+            <input type="range" name="start_acousticness" id="start_acousticness" min="0" max="1" step="0.05" value="{{ start.acousticness|default:'0.6' }}" oninput="document.getElementById('sa-val').textContent=this.value">
+        </div>
+        <div class="slider-group">
+            <label>Tempo (BPM) <span id="st-val">90</span></label>
+            <input type="range" name="start_tempo" id="start_tempo" min="60" max="200" step="5" value="{{ start.tempo|default:'90' }}" oninput="document.getElementById('st-val').textContent=this.value">
+        </div>
+    </div>
+
+    <div class="mood-panel">
+        <h3><i class="fa-solid fa-bolt" aria-hidden="true"></i> Ending Mood</h3>
+        <div class="slider-group">
+            <label>Valence (Happiness) <span id="ev-val">0.8</span></label>
+            <input type="range" name="end_valence" id="end_valence" min="0" max="1" step="0.05" value="{{ end.valence|default:'0.8' }}" oninput="document.getElementById('ev-val').textContent=this.value">
+        </div>
+        <div class="slider-group">
+            <label>Energy <span id="ee-val">0.8</span></label>
+            <input type="range" name="end_energy" id="end_energy" min="0" max="1" step="0.05" value="{{ end.energy|default:'0.8' }}" oninput="document.getElementById('ee-val').textContent=this.value">
+        </div>
+        <div class="slider-group">
+            <label>Danceability <span id="ed-val">0.7</span></label>
+            <input type="range" name="end_danceability" id="end_danceability" min="0" max="1" step="0.05" value="{{ end.danceability|default:'0.7' }}" oninput="document.getElementById('ed-val').textContent=this.value">
+        </div>
+        <div class="slider-group">
+            <label>Acousticness <span id="ea-val">0.2</span></label>
+            <input type="range" name="end_acousticness" id="end_acousticness" min="0" max="1" step="0.05" value="{{ end.acousticness|default:'0.2' }}" oninput="document.getElementById('ea-val').textContent=this.value">
+        </div>
+        <div class="slider-group">
+            <label>Tempo (BPM) <span id="et-val">140</span></label>
+            <input type="range" name="end_tempo" id="end_tempo" min="60" max="200" step="5" value="{{ end.tempo|default:'140' }}" oninput="document.getElementById('et-val').textContent=this.value">
+        </div>
+    </div>
+
+    <div class="steps-control">
+        <label for="steps">Journey Length:</label>
+        <select name="steps" id="steps">
+            {% for n in "345678" %}<option value="{{ n }}" {% if steps|default:8 == n|add:0 %}selected{% endif %}>{{ n }} tracks</option>{% endfor %}
+            <option value="10" {% if steps == 10 %}selected{% endif %}>10 tracks</option>
+            <option value="12" {% if steps == 12 %}selected{% endif %}>12 tracks</option>
+            <option value="15" {% if steps == 15 %}selected{% endif %}>15 tracks</option>
+        </select>
+    </div>
+
+    <button type="submit" class="journey-btn"><i class="fa-solid fa-route" aria-hidden="true"></i> Generate Journey</button>
+</form>
+
+{% if journey %}
+<h2>Your Mood Journey ({{ journey|length }} tracks)</h2>
+<div class="journey-timeline">
+    {% for step in journey %}
+    <div class="journey-step">
+        <div class="step-number">{{ step.step }}</div>
+        <div class="step-info">
+            <h4>{{ step.track.title }} <span style="color: var(--text-muted);">— {{ step.track.artist.name }}</span></h4>
+            <p>Similarity to target: {{ step.distance }}</p>
+            <div class="step-features">
+                <span class="feature-pill">V: {{ step.target.valence }}</span>
+                <span class="feature-pill">E: {{ step.target.energy }}</span>
+                <span class="feature-pill">D: {{ step.target.danceability }}</span>
+                <span class="feature-pill">BPM: {{ step.target.tempo }}</span>
+            </div>
+        </div>
+    </div>
+    {% if not forloop.last %}<div class="journey-arrow"><i class="fa-solid fa-arrow-down" aria-hidden="true"></i></div>{% endif %}
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function applyPreset(name) {
+    var presets = {
+        morning: {start: {v:0.2, e:0.15, d:0.2, a:0.8, t:70}, end: {v:0.7, e:0.65, d:0.6, a:0.3, t:120}},
+        workout: {start: {v:0.5, e:0.4, d:0.5, a:0.3, t:110}, end: {v:0.8, e:0.95, d:0.85, a:0.1, t:160}},
+        wind_down: {start: {v:0.6, e:0.6, d:0.5, a:0.3, t:120}, end: {v:0.3, e:0.15, d:0.2, a:0.85, t:70}},
+        party: {start: {v:0.4, e:0.3, d:0.4, a:0.5, t:100}, end: {v:0.9, e:0.9, d:0.9, a:0.1, t:128}},
+    };
+    var p = presets[name]; if (!p) return;
+    document.getElementById('start_valence').value = p.start.v; document.getElementById('sv-val').textContent = p.start.v;
+    document.getElementById('start_energy').value = p.start.e; document.getElementById('se-val').textContent = p.start.e;
+    document.getElementById('start_danceability').value = p.start.d; document.getElementById('sd-val').textContent = p.start.d;
+    document.getElementById('start_acousticness').value = p.start.a; document.getElementById('sa-val').textContent = p.start.a;
+    document.getElementById('start_tempo').value = p.start.t; document.getElementById('st-val').textContent = p.start.t;
+    document.getElementById('end_valence').value = p.end.v; document.getElementById('ev-val').textContent = p.end.v;
+    document.getElementById('end_energy').value = p.end.e; document.getElementById('ee-val').textContent = p.end.e;
+    document.getElementById('end_danceability').value = p.end.d; document.getElementById('ed-val').textContent = p.end.d;
+    document.getElementById('end_acousticness').value = p.end.a; document.getElementById('ea-val').textContent = p.end.a;
+    document.getElementById('end_tempo').value = p.end.t; document.getElementById('et-val').textContent = p.end.t;
+}
+// Init slider display values on load
+document.addEventListener('DOMContentLoaded', function() {
+    ['start_valence','start_energy','start_danceability','start_acousticness','start_tempo',
+     'end_valence','end_energy','end_danceability','end_acousticness','end_tempo'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) { var span = el.closest('.slider-group').querySelector('span'); if (span) span.textContent = el.value; }
+    });
+});
+</script>
+{% endblock %}

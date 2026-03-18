@@ -1,0 +1,119 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:14
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=music_db
+      - POSTGRES_USER=music_user
+      - POSTGRES_PASSWORD=music_pass
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U music_user -d music_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+
+  web:
+    build: .
+    restart: unless-stopped
+    # Use Daphne ASGI server for WebSocket support instead of Django's runserver
+    command: daphne -b 0.0.0.0 -p 8000 next_track.asgi:application
+    volumes:
+      - .:/code
+      - static_volume:/code/staticfiles
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DEBUG=True
+      - DJANGO_SETTINGS_MODULE=next_track.settings.development
+      - SECRET_KEY=${SECRET_KEY:-}
+      - DATABASE_URL=postgresql://music_user:music_pass@db:5432/music_db
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_HOST=redis
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
+      - LASTFM_API_KEY=${LASTFM_API_KEY:-}
+      - GENIUS_ACCESS_TOKEN=${GENIUS_ACCESS_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  celery:
+    build: .
+    restart: unless-stopped
+    command: celery -A next_track worker -l info
+    volumes:
+      - .:/code
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=${SECRET_KEY:-}
+      - DATABASE_URL=postgresql://music_user:music_pass@db:5432/music_db
+      - REDIS_URL=redis://redis:6379/0
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
+      - LASTFM_API_KEY=${LASTFM_API_KEY:-}
+      - GENIUS_ACCESS_TOKEN=${GENIUS_ACCESS_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "celery", "-A", "next_track", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+volumes:
+  postgres_data:
+  static_volume:

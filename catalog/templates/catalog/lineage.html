@@ -1,0 +1,574 @@
+{% extends "catalog/base.html" %}
+{% block title %}Genre Lineage Map{% endblock %}
+
+{% block extra_head %}
+<style>
+    .lineage-container {
+        position: relative;
+        background: var(--bg-card, #282828);
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--border-color, #404040);
+    }
+    .lineage-canvas {
+        display: block;
+        width: 100%;
+        cursor: grab;
+    }
+    .lineage-canvas:active {
+        cursor: grabbing;
+    }
+    .lineage-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 4rem 2rem;
+        color: var(--text-muted, #b3b3b3);
+        gap: 1rem;
+    }
+    .lineage-loading .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid var(--border-color, #404040);
+        border-top-color: var(--primary-color, #1db954);
+        border-radius: 50%;
+        animation: spin-lineage 0.8s linear infinite;
+    }
+    @keyframes spin-lineage {
+        to { transform: rotate(360deg); }
+    }
+    .lineage-empty {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 4rem 2rem;
+        color: var(--text-muted, #b3b3b3);
+        gap: 1rem;
+        text-align: center;
+    }
+    .lineage-empty i {
+        font-size: 3rem;
+        opacity: 0.4;
+    }
+    .lineage-info {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.5rem;
+    }
+    .lineage-stat {
+        background: var(--bg-card, #282828);
+        border: 1px solid var(--border-color, #404040);
+        border-radius: 8px;
+        padding: 0.75rem 1.25rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .lineage-stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--primary-color, #1db954);
+    }
+    .lineage-stat-label {
+        font-size: 0.8rem;
+        color: var(--text-muted, #b3b3b3);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    .lineage-legend {
+        margin-top: 1rem;
+        padding: 1rem 1.25rem;
+        background: var(--bg-card, #282828);
+        border: 1px solid var(--border-color, #404040);
+        border-radius: 8px;
+        font-size: 0.85rem;
+        color: var(--text-muted, #b3b3b3);
+        line-height: 1.6;
+    }
+    .lineage-legend strong {
+        color: var(--text-color, #fff);
+    }
+    .lineage-selected-info {
+        display: none;
+        margin-top: 1rem;
+        padding: 1rem 1.25rem;
+        background: var(--bg-card, #282828);
+        border: 1px solid var(--color-purple, #a855f7);
+        border-radius: 8px;
+    }
+    .lineage-selected-info h3 {
+        margin: 0 0 0.5rem;
+        color: var(--color-purple, #a855f7);
+        font-size: 1rem;
+    }
+    .lineage-selected-info .connections {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin-top: 0.5rem;
+    }
+    .lineage-selected-info .connection-tag {
+        background: rgba(168, 85, 247, 0.15);
+        color: var(--color-purple, #a855f7);
+        border: 1px solid rgba(168, 85, 247, 0.3);
+        padding: 0.2rem 0.6rem;
+        border-radius: 12px;
+        font-size: 0.8rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1><i class="fa-solid fa-diagram-project" aria-hidden="true"></i> Genre Lineage Map</h1>
+<p class="text-muted">Explore how genres relate to each other based on tracks in the library. Genres that frequently appear together on the same tracks are connected.</p>
+
+<div class="lineage-info" id="lineage-stats" style="display:none;"></div>
+
+<div class="lineage-container">
+    <div class="lineage-loading" id="lineage-loading">
+        <div class="spinner"></div>
+        <span>Loading genre data...</span>
+    </div>
+    <div class="lineage-empty" id="lineage-empty">
+        <i class="fa-solid fa-circle-nodes" aria-hidden="true"></i>
+        <p>No genre connections found yet.</p>
+        <p>Add more tracks with multiple genres to see the lineage map.</p>
+    </div>
+    <canvas id="lineage-canvas" class="lineage-canvas" style="display:none;"></canvas>
+</div>
+
+<div class="lineage-selected-info" id="selected-info">
+    <h3 id="selected-genre-name"></h3>
+    <p id="selected-genre-count" class="text-muted" style="font-size:0.85rem;"></p>
+    <div class="connections" id="selected-connections"></div>
+</div>
+
+<div class="lineage-legend">
+    <strong>How to read this map:</strong>
+    Circle size = number of tracks in that genre.
+    Line thickness/opacity = strength of connection (more shared tracks = stronger link).
+    <strong>Click</strong> a genre node to highlight its connections.
+    Click the background to deselect.
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    'use strict';
+
+    var canvas = document.getElementById('lineage-canvas');
+    var ctx = canvas.getContext('2d');
+    var loadingEl = document.getElementById('lineage-loading');
+    var emptyEl = document.getElementById('lineage-empty');
+    var statsEl = document.getElementById('lineage-stats');
+    var selectedInfoEl = document.getElementById('selected-info');
+
+    var nodes = [];
+    var edges = [];
+    var selectedNode = null;
+    var hoveredNode = null;
+    var animationId = null;
+    var dpr = window.devicePixelRatio || 1;
+
+    // Physics constants
+    var REPULSION = 800;
+    var ATTRACTION = 0.005;
+    var DAMPING = 0.9;
+    var MIN_NODE_RADIUS = 8;
+    var MAX_NODE_RADIUS = 40;
+    var CENTER_GRAVITY = 0.01;
+
+    function resizeCanvas() {
+        var rect = canvas.parentElement.getBoundingClientRect();
+        var w = rect.width;
+        var h = Math.max(500, Math.min(700, window.innerHeight * 0.65));
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        canvas.style.width = w + 'px';
+        canvas.style.height = h + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { w: w, h: h };
+    }
+
+    function loadData() {
+        fetch('/api/tracks/genre-lineage/')
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                loadingEl.style.display = 'none';
+
+                if (!data.nodes || data.nodes.length === 0) {
+                    emptyEl.style.display = 'flex';
+                    return;
+                }
+
+                // Filter nodes to only those involved in edges (or show all if few)
+                var connectedGenres = new Set();
+                (data.edges || []).forEach(function(e) {
+                    connectedGenres.add(e.source);
+                    connectedGenres.add(e.target);
+                });
+
+                if (connectedGenres.size === 0) {
+                    emptyEl.style.display = 'flex';
+                    return;
+                }
+
+                canvas.style.display = 'block';
+                var size = resizeCanvas();
+
+                // Prepare nodes
+                var maxCount = Math.max.apply(null, data.nodes.map(function(n) { return n.count; }));
+                var minCount = Math.min.apply(null, data.nodes.map(function(n) { return n.count; }));
+                var countRange = Math.max(maxCount - minCount, 1);
+
+                nodes = data.nodes
+                    .filter(function(n) { return connectedGenres.has(n.id); })
+                    .map(function(n) {
+                        var t = (n.count - minCount) / countRange;
+                        var radius = MIN_NODE_RADIUS + t * (MAX_NODE_RADIUS - MIN_NODE_RADIUS);
+                        return {
+                            id: n.id,
+                            name: n.name,
+                            count: n.count,
+                            radius: radius,
+                            x: size.w * 0.2 + Math.random() * size.w * 0.6,
+                            y: size.h * 0.2 + Math.random() * size.h * 0.6,
+                            vx: 0,
+                            vy: 0
+                        };
+                    });
+
+                // Build a lookup
+                var nodeMap = {};
+                nodes.forEach(function(n) { nodeMap[n.id] = n; });
+
+                // Prepare edges
+                var maxWeight = 1;
+                (data.edges || []).forEach(function(e) {
+                    if (e.weight > maxWeight) maxWeight = e.weight;
+                });
+
+                edges = (data.edges || []).map(function(e) {
+                    return {
+                        source: nodeMap[e.source],
+                        target: nodeMap[e.target],
+                        weight: e.weight,
+                        normalizedWeight: e.weight / maxWeight
+                    };
+                }).filter(function(e) { return e.source && e.target; });
+
+                // Show stats
+                statsEl.style.display = 'flex';
+                statsEl.innerHTML =
+                    '<div class="lineage-stat"><span class="lineage-stat-value">' + nodes.length + '</span><span class="lineage-stat-label">Genres</span></div>' +
+                    '<div class="lineage-stat"><span class="lineage-stat-value">' + edges.length + '</span><span class="lineage-stat-label">Connections</span></div>' +
+                    '<div class="lineage-stat"><span class="lineage-stat-value">' + maxWeight + '</span><span class="lineage-stat-label">Strongest Link</span></div>';
+
+                // Start simulation
+                simulate(size);
+            })
+            .catch(function(err) {
+                loadingEl.style.display = 'none';
+                emptyEl.style.display = 'flex';
+                console.error('Genre lineage load error:', err);
+            });
+    }
+
+    function simulate(size) {
+        var iterations = 0;
+        var maxIterations = 300;
+
+        function tick() {
+            var cx = size.w / 2;
+            var cy = size.h / 2;
+
+            // Apply forces
+            for (var i = 0; i < nodes.length; i++) {
+                var nodeA = nodes[i];
+                // Center gravity
+                nodeA.vx += (cx - nodeA.x) * CENTER_GRAVITY;
+                nodeA.vy += (cy - nodeA.y) * CENTER_GRAVITY;
+
+                // Repulsion from other nodes
+                for (var j = i + 1; j < nodes.length; j++) {
+                    var nodeB = nodes[j];
+                    var dx = nodeA.x - nodeB.x;
+                    var dy = nodeA.y - nodeB.y;
+                    var dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 1) dist = 1;
+                    var minDist = nodeA.radius + nodeB.radius + 20;
+                    if (dist < minDist * 3) {
+                        var force = REPULSION / (dist * dist);
+                        var fx = dx / dist * force;
+                        var fy = dy / dist * force;
+                        nodeA.vx += fx;
+                        nodeA.vy += fy;
+                        nodeB.vx -= fx;
+                        nodeB.vy -= fy;
+                    }
+                }
+            }
+
+            // Edge attraction
+            for (var e = 0; e < edges.length; e++) {
+                var edge = edges[e];
+                var dx = edge.target.x - edge.source.x;
+                var dy = edge.target.y - edge.source.y;
+                var dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 1) dist = 1;
+                var force = dist * ATTRACTION * (1 + edge.normalizedWeight);
+                var fx = dx / dist * force;
+                var fy = dy / dist * force;
+                edge.source.vx += fx;
+                edge.source.vy += fy;
+                edge.target.vx -= fx;
+                edge.target.vy -= fy;
+            }
+
+            // Update positions with damping
+            var totalMovement = 0;
+            for (var i = 0; i < nodes.length; i++) {
+                var node = nodes[i];
+                node.vx *= DAMPING;
+                node.vy *= DAMPING;
+                node.x += node.vx;
+                node.y += node.vy;
+                // Keep within bounds
+                node.x = Math.max(node.radius + 5, Math.min(size.w - node.radius - 5, node.x));
+                node.y = Math.max(node.radius + 5, Math.min(size.h - node.radius - 5, node.y));
+                totalMovement += Math.abs(node.vx) + Math.abs(node.vy);
+            }
+
+            draw(size);
+            iterations++;
+
+            // Continue until settled or max iterations
+            if (totalMovement > 0.5 && iterations < maxIterations) {
+                animationId = requestAnimationFrame(tick);
+            }
+        }
+
+        tick();
+    }
+
+    function draw(size) {
+        ctx.clearRect(0, 0, size.w, size.h);
+
+        // Determine highlight state
+        var highlightSet = null;
+        var activeNode = selectedNode || hoveredNode;
+        if (activeNode) {
+            highlightSet = new Set();
+            highlightSet.add(activeNode.id);
+            edges.forEach(function(e) {
+                if (e.source.id === activeNode.id) highlightSet.add(e.target.id);
+                if (e.target.id === activeNode.id) highlightSet.add(e.source.id);
+            });
+        }
+
+        // Draw edges
+        for (var e = 0; e < edges.length; e++) {
+            var edge = edges[e];
+            var isHighlighted = activeNode &&
+                (edge.source.id === activeNode.id || edge.target.id === activeNode.id);
+            var isDimmed = activeNode && !isHighlighted;
+
+            ctx.beginPath();
+            ctx.moveTo(edge.source.x, edge.source.y);
+            ctx.lineTo(edge.target.x, edge.target.y);
+
+            if (isDimmed) {
+                ctx.strokeStyle = 'rgba(100, 100, 100, 0.08)';
+                ctx.lineWidth = 1;
+            } else if (isHighlighted) {
+                var alpha = 0.4 + edge.normalizedWeight * 0.6;
+                ctx.strokeStyle = 'rgba(168, 85, 247, ' + alpha + ')';
+                ctx.lineWidth = 1.5 + edge.normalizedWeight * 4;
+            } else {
+                var alpha = 0.1 + edge.normalizedWeight * 0.35;
+                ctx.strokeStyle = 'rgba(59, 130, 246, ' + alpha + ')';
+                ctx.lineWidth = 0.5 + edge.normalizedWeight * 2.5;
+            }
+            ctx.stroke();
+        }
+
+        // Draw nodes
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            var isActive = activeNode && node.id === activeNode.id;
+            var isConnected = highlightSet && highlightSet.has(node.id);
+            var isDimmed = activeNode && !isConnected;
+
+            // Node circle
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+
+            if (isActive) {
+                ctx.fillStyle = 'rgba(168, 85, 247, 0.9)';
+                ctx.shadowColor = 'rgba(168, 85, 247, 0.5)';
+                ctx.shadowBlur = 15;
+            } else if (isDimmed) {
+                ctx.fillStyle = 'rgba(60, 60, 60, 0.4)';
+                ctx.shadowBlur = 0;
+            } else if (isConnected) {
+                ctx.fillStyle = 'rgba(59, 130, 246, 0.7)';
+                ctx.shadowColor = 'rgba(59, 130, 246, 0.3)';
+                ctx.shadowBlur = 10;
+            } else {
+                ctx.fillStyle = 'rgba(29, 185, 84, 0.65)';
+                ctx.shadowBlur = 0;
+            }
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Border
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+            if (isActive) {
+                ctx.strokeStyle = 'rgba(168, 85, 247, 1)';
+                ctx.lineWidth = 2.5;
+            } else if (isDimmed) {
+                ctx.strokeStyle = 'rgba(80, 80, 80, 0.3)';
+                ctx.lineWidth = 1;
+            } else if (isConnected) {
+                ctx.strokeStyle = 'rgba(59, 130, 246, 0.8)';
+                ctx.lineWidth = 2;
+            } else {
+                ctx.strokeStyle = 'rgba(29, 185, 84, 0.5)';
+                ctx.lineWidth = 1.5;
+            }
+            ctx.stroke();
+
+            // Label
+            if (node.radius >= 12 || isActive || isConnected) {
+                var fontSize = Math.max(9, Math.min(13, node.radius * 0.55));
+                ctx.font = (isActive ? 'bold ' : '') + fontSize + 'px -apple-system, BlinkMacSystemFont, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                var label = node.name;
+                if (label.length > 16 && node.radius < 25) {
+                    label = label.substring(0, 14) + '...';
+                }
+
+                if (isDimmed) {
+                    ctx.fillStyle = 'rgba(120, 120, 120, 0.3)';
+                } else {
+                    // Text shadow for readability
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    ctx.fillText(label, node.x + 1, node.y + node.radius + fontSize + 1);
+                    ctx.fillStyle = isActive ? '#d8b4fe' : isConnected ? '#93c5fd' : '#e0e0e0';
+                }
+                ctx.fillText(label, node.x, node.y + node.radius + fontSize);
+            }
+        }
+    }
+
+    function getNodeAt(mx, my) {
+        for (var i = nodes.length - 1; i >= 0; i--) {
+            var node = nodes[i];
+            var dx = mx - node.x;
+            var dy = my - node.y;
+            if (dx * dx + dy * dy <= node.radius * node.radius) {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    function getMousePos(e) {
+        var rect = canvas.getBoundingClientRect();
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+    }
+
+    canvas.addEventListener('click', function(e) {
+        var pos = getMousePos(e);
+        var node = getNodeAt(pos.x, pos.y);
+
+        if (node) {
+            if (selectedNode && selectedNode.id === node.id) {
+                selectedNode = null;
+                selectedInfoEl.style.display = 'none';
+            } else {
+                selectedNode = node;
+                showSelectedInfo(node);
+            }
+        } else {
+            selectedNode = null;
+            selectedInfoEl.style.display = 'none';
+        }
+
+        var size = { w: canvas.width / dpr, h: canvas.height / dpr };
+        draw(size);
+    });
+
+    canvas.addEventListener('mousemove', function(e) {
+        var pos = getMousePos(e);
+        var node = getNodeAt(pos.x, pos.y);
+        var changed = (hoveredNode !== node);
+        hoveredNode = node;
+        canvas.style.cursor = node ? 'pointer' : 'grab';
+
+        if (changed) {
+            var size = { w: canvas.width / dpr, h: canvas.height / dpr };
+            draw(size);
+        }
+    });
+
+    canvas.addEventListener('mouseleave', function() {
+        if (hoveredNode) {
+            hoveredNode = null;
+            var size = { w: canvas.width / dpr, h: canvas.height / dpr };
+            draw(size);
+        }
+    });
+
+    function showSelectedInfo(node) {
+        var nameEl = document.getElementById('selected-genre-name');
+        var countEl = document.getElementById('selected-genre-count');
+        var connectionsEl = document.getElementById('selected-connections');
+
+        nameEl.textContent = node.name;
+        countEl.textContent = node.count + ' track' + (node.count !== 1 ? 's' : '') + ' in this genre';
+
+        var connections = [];
+        edges.forEach(function(e) {
+            if (e.source.id === node.id) {
+                connections.push({ name: e.target.name, weight: e.weight });
+            } else if (e.target.id === node.id) {
+                connections.push({ name: e.source.name, weight: e.weight });
+            }
+        });
+        connections.sort(function(a, b) { return b.weight - a.weight; });
+
+        connectionsEl.innerHTML = connections.map(function(c) {
+            return '<span class="connection-tag">' + c.name + ' (' + c.weight + ')</span>';
+        }).join('');
+
+        selectedInfoEl.style.display = 'block';
+    }
+
+    // Handle resize
+    var resizeTimeout;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+            if (nodes.length > 0) {
+                var size = resizeCanvas();
+                draw(size);
+            }
+        }, 200);
+    });
+
+    // Load on DOM ready
+    document.addEventListener('DOMContentLoaded', loadData);
+})();
+</script>
+{% endblock %}

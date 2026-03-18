@@ -1,0 +1,565 @@
+{% extends 'catalog/base.html' %}
+
+{% block title %}Track DNA Comparison{% endblock %}
+
+{% block meta_description %}Compare two tracks side-by-side using audio feature analysis. See similarity scores, feature differences, and shared genres.{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+<style>
+    .compare-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .compare-header h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-color);
+        margin-bottom: 0.5rem;
+    }
+    .compare-header p {
+        color: var(--text-muted);
+        font-size: 1rem;
+    }
+
+    /* Picker form */
+    .compare-picker {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 2rem;
+        max-width: 600px;
+        margin: 0 auto 2rem;
+    }
+    .compare-picker label {
+        display: block;
+        font-weight: 600;
+        color: var(--text-color);
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+    }
+    .compare-picker input[type="text"] {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-secondary, #0f0f23);
+        color: var(--text-color);
+        font-size: 1rem;
+        margin-bottom: 1.25rem;
+        transition: border-color 0.2s;
+    }
+    .compare-picker input[type="text"]:focus {
+        border-color: var(--primary-color);
+        outline: none;
+    }
+    .compare-picker .btn-compare {
+        display: block;
+        width: 100%;
+        padding: 0.75rem;
+        border: none;
+        border-radius: 8px;
+        background: var(--primary-color);
+        color: var(--secondary-color, #191414);
+        font-size: 1rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: opacity 0.2s, transform 0.2s;
+    }
+    .compare-picker .btn-compare:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+    }
+
+    /* Similarity score */
+    .similarity-banner {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .similarity-score {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        border: 4px solid var(--primary-color);
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--primary-color);
+        margin-bottom: 0.75rem;
+        background: rgba(29, 185, 84, 0.08);
+    }
+    .similarity-label {
+        display: block;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+    }
+    .distance-label {
+        display: block;
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        margin-top: 0.25rem;
+    }
+
+    /* Side-by-side layout */
+    .compare-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    @media (max-width: 768px) {
+        .compare-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    .track-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+    }
+    .track-card h3 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-color);
+        margin-bottom: 0.25rem;
+    }
+    .track-card .artist {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        margin-bottom: 0.75rem;
+    }
+    .track-card .track-side-label {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.75rem;
+    }
+    .track-card .label-a {
+        background: rgba(29, 185, 84, 0.15);
+        color: var(--primary-color);
+    }
+    .track-card .label-b {
+        background: rgba(99, 102, 241, 0.15);
+        color: #818cf8;
+    }
+
+    /* Feature diffs bar chart */
+    .feature-diffs {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    .feature-diffs h2 {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--text-color);
+        margin-bottom: 1rem;
+    }
+    .diff-row {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.75rem;
+        gap: 0.75rem;
+    }
+    .diff-label {
+        width: 120px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-color);
+        text-transform: capitalize;
+        flex-shrink: 0;
+    }
+    .diff-bar-container {
+        flex: 1;
+        height: 24px;
+        background: var(--bg-secondary, #0f0f23);
+        border-radius: 4px;
+        position: relative;
+        overflow: hidden;
+    }
+    .diff-bar-center {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        width: 1px;
+        background: var(--border-color);
+    }
+    .diff-bar {
+        position: absolute;
+        top: 2px;
+        bottom: 2px;
+        border-radius: 3px;
+        transition: width 0.4s ease;
+    }
+    .diff-bar.positive {
+        left: 50%;
+        background: var(--primary-color);
+    }
+    .diff-bar.negative {
+        right: 50%;
+        background: #818cf8;
+    }
+    .diff-value {
+        width: 60px;
+        text-align: right;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        flex-shrink: 0;
+    }
+
+    /* Genres section */
+    .genres-section {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    .genres-section h2 {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--text-color);
+        margin-bottom: 1rem;
+    }
+    .genre-group {
+        margin-bottom: 1rem;
+    }
+    .genre-group h4 {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.5rem;
+    }
+    .genre-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+    .genre-tag {
+        display: inline-block;
+        padding: 0.25rem 0.6rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+    .genre-tag.shared {
+        background: rgba(29, 185, 84, 0.15);
+        color: var(--primary-color);
+        border: 1px solid rgba(29, 185, 84, 0.3);
+    }
+    .genre-tag.unique-a {
+        background: rgba(29, 185, 84, 0.08);
+        color: var(--primary-color);
+        border: 1px solid rgba(29, 185, 84, 0.15);
+    }
+    .genre-tag.unique-b {
+        background: rgba(99, 102, 241, 0.08);
+        color: #818cf8;
+        border: 1px solid rgba(99, 102, 241, 0.15);
+    }
+    .no-genres {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        font-style: italic;
+    }
+
+    /* Radar chart */
+    .radar-section {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+    .radar-section h2 {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--text-color);
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+    .radar-chart-wrapper {
+        max-width: 500px;
+        margin: 0 auto;
+    }
+
+    /* Error alert */
+    .alert-error {
+        padding: 1rem 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        background: rgba(239, 68, 68, 0.15);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        color: #ef4444;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="compare-header">
+    <h1>Track DNA Comparison</h1>
+    <p>Compare the audio fingerprints of two tracks side-by-side</p>
+</div>
+
+{% if error %}
+<div class="alert-error" role="alert">
+    <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+    <span>{{ error }}</span>
+</div>
+{% endif %}
+
+{% if not comparison %}
+<!-- Picker form -->
+<div class="compare-picker">
+    <form method="get" id="compare-form">
+        <label for="track-a">Track A (Spotify ID)</label>
+        <input type="text" id="track-a" name="track_a" placeholder="e.g. 4uLU6hMCjMI75M1A2tKUQC" required>
+
+        <label for="track-b">Track B (Spotify ID)</label>
+        <input type="text" id="track-b" name="track_b" placeholder="e.g. 3n3Ppam7vgaVa1iaRUc9Lp" required>
+
+        <button type="submit" class="btn-compare">
+            <i class="fa-solid fa-dna" aria-hidden="true"></i> Compare Tracks
+        </button>
+    </form>
+</div>
+{% else %}
+<!-- Similarity score banner -->
+<div class="similarity-banner">
+    <div class="similarity-score" aria-label="Similarity score {{ comparison.similarity }} percent">
+        {{ comparison.similarity }}%
+    </div>
+    <span class="similarity-label">Similarity Score</span>
+    <span class="distance-label">Euclidean distance: {{ comparison.distance }}</span>
+</div>
+
+<!-- Side-by-side track cards -->
+<div class="compare-grid">
+    <div class="track-card">
+        <span class="track-side-label label-a">Track A</span>
+        <h3>{{ comparison.track_a.title }}</h3>
+        <p class="artist">{{ comparison.track_a.artist.name }}</p>
+    </div>
+    <div class="track-card">
+        <span class="track-side-label label-b">Track B</span>
+        <h3>{{ comparison.track_b.title }}</h3>
+        <p class="artist">{{ comparison.track_b.artist.name }}</p>
+    </div>
+</div>
+
+<!-- Feature differences bar chart -->
+<div class="feature-diffs">
+    <h2>Feature Differences</h2>
+    {% for feat, diff in comparison.feature_diffs.items %}
+    <div class="diff-row">
+        <span class="diff-label">{{ feat }}</span>
+        <div class="diff-bar-container">
+            <div class="diff-bar-center"></div>
+            {% if diff >= 0 %}
+            <div class="diff-bar positive" style="width: {% widthratio diff 100 50 %}%;"></div>
+            {% else %}
+            <div class="diff-bar negative" style="width: {% widthratio diff -100 50 %}%;"></div>
+            {% endif %}
+        </div>
+        <span class="diff-value">{% if diff > 0 %}+{% endif %}{{ diff }}</span>
+    </div>
+    {% endfor %}
+    <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.75rem;">
+        Positive values (green, right) mean Track A is higher. Negative values (purple, left) mean Track B is higher.
+    </p>
+</div>
+
+<!-- Genres -->
+<div class="genres-section">
+    <h2>Genre Analysis</h2>
+
+    <div class="genre-group">
+        <h4>Shared Genres</h4>
+        <div class="genre-tags">
+            {% for genre in comparison.shared_genres %}
+            <span class="genre-tag shared">{{ genre }}</span>
+            {% empty %}
+            <span class="no-genres">No shared genres</span>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="genre-group">
+        <h4>Unique to Track A</h4>
+        <div class="genre-tags">
+            {% for genre in comparison.unique_a %}
+            <span class="genre-tag unique-a">{{ genre }}</span>
+            {% empty %}
+            <span class="no-genres">None</span>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="genre-group">
+        <h4>Unique to Track B</h4>
+        <div class="genre-tags">
+            {% for genre in comparison.unique_b %}
+            <span class="genre-tag unique-b">{{ genre }}</span>
+            {% empty %}
+            <span class="no-genres">None</span>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Radar chart overlay -->
+<div class="radar-section">
+    <h2>Audio Feature Radar</h2>
+    <div class="radar-chart-wrapper">
+        <canvas id="compareRadarChart" aria-label="Radar chart comparing audio features of both tracks"></canvas>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if comparison %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var ctx = document.getElementById('compareRadarChart');
+    if (!ctx) return;
+
+    var featuresA = {{ comparison.features_a|safe }};
+    var featuresB = {{ comparison.features_b|safe }};
+    var labels = ['Valence', 'Energy', 'Danceability', 'Acousticness', 'Tempo'];
+
+    // Normalize tempo to 0-1 range for radar display
+    if (featuresA.length >= 5) featuresA[4] = featuresA[4] / 200.0;
+    if (featuresB.length >= 5) featuresB[4] = featuresB[4] / 200.0;
+
+    new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: '{{ comparison.track_a.title|escapejs }}',
+                    data: featuresA,
+                    backgroundColor: 'rgba(29, 185, 84, 0.15)',
+                    borderColor: 'rgba(29, 185, 84, 0.8)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(29, 185, 84, 1)',
+                    pointBorderColor: '#fff',
+                    pointRadius: 4,
+                },
+                {
+                    label: '{{ comparison.track_b.title|escapejs }}',
+                    data: featuresB,
+                    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                    borderColor: 'rgba(99, 102, 241, 0.8)',
+                    borderWidth: 2,
+                    pointBackgroundColor: 'rgba(99, 102, 241, 1)',
+                    pointBorderColor: '#fff',
+                    pointRadius: 4,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: 1,
+                    ticks: {
+                        stepSize: 0.2,
+                        color: 'rgba(255, 255, 255, 0.4)',
+                        backdropColor: 'transparent',
+                        font: { size: 11 }
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.08)'
+                    },
+                    angleLines: {
+                        color: 'rgba(255, 255, 255, 0.08)'
+                    },
+                    pointLabels: {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        font: { size: 13, weight: '600' }
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        color: 'rgba(255, 255, 255, 0.7)',
+                        padding: 20,
+                        font: { size: 12 },
+                        usePointStyle: true,
+                        pointStyle: 'circle'
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1,
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + (context.raw * 100).toFixed(1) + '%';
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+<script>
+// Handle picker form to construct URL path
+(function() {
+    var form = document.getElementById('compare-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var a = document.getElementById('track-a').value.trim();
+            var b = document.getElementById('track-b').value.trim();
+            if (a && b) {
+                window.location.href = '/compare/' + encodeURIComponent(a) + '/' + encodeURIComponent(b) + '/';
+            }
+        });
+    }
+})();
+</script>
+{% else %}
+<script>
+// Handle picker form to construct URL path
+(function() {
+    var form = document.getElementById('compare-form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var a = document.getElementById('track-a').value.trim();
+            var b = document.getElementById('track-b').value.trim();
+            if (a && b) {
+                window.location.href = '/compare/' + encodeURIComponent(a) + '/' + encodeURIComponent(b) + '/';
+            }
+        });
+    }
+})();
+</script>
+{% endif %}
+{% endblock %}

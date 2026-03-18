@@ -1,0 +1,426 @@
+{% extends 'catalog/base.html' %}
+
+{% block title %}Analytics Dashboard{% endblock %}
+
+{% block meta_description %}NextTrack analytics dashboard showing user engagement metrics, survey responses, feedback analysis, and daily activity trends.{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+<style>
+    .dashboard-header {
+        margin-bottom: 2rem;
+    }
+    .dashboard-header h1 {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .dashboard-header h1 i {
+        color: var(--primary-color);
+    }
+    .dashboard-header p {
+        color: var(--text-muted);
+        margin-top: 0.5rem;
+    }
+
+    .metrics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .metric-card {
+        background: var(--bg-card);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid var(--border-color);
+    }
+    .metric-card .metric-icon {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+    }
+    .metric-card .metric-icon.green {
+        background: rgba(29, 185, 84, 0.15);
+        color: var(--primary-color);
+    }
+    .metric-card .metric-icon.blue {
+        background: rgba(59, 130, 246, 0.15);
+        color: #3b82f6;
+    }
+    .metric-card .metric-icon.purple {
+        background: rgba(139, 92, 246, 0.15);
+        color: #8b5cf6;
+    }
+    .metric-card .metric-icon.orange {
+        background: rgba(245, 158, 11, 0.15);
+        color: #f59e0b;
+    }
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-color);
+        margin-bottom: 0.25rem;
+    }
+    .metric-label {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+    }
+    .metric-trend {
+        font-size: 0.8rem;
+        margin-top: 0.5rem;
+    }
+    .metric-trend.positive {
+        color: var(--primary-color);
+    }
+
+    .dashboard-section {
+        background: var(--bg-card);
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid var(--border-color);
+        margin-bottom: 1.5rem;
+    }
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .section-header h2 {
+        font-size: 1.1rem;
+        margin: 0;
+    }
+    .section-header i {
+        color: var(--primary-color);
+    }
+
+    .chart-container {
+        position: relative;
+        height: 250px;
+    }
+
+    .feedback-text-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    .feedback-text-item {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 1rem;
+        border-left: 3px solid var(--primary-color);
+    }
+    .feedback-text-item .quote {
+        color: var(--text-color);
+        font-style: italic;
+        margin-bottom: 0.5rem;
+    }
+    .feedback-text-item .suggestion {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+    }
+    .feedback-text-item .date {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.5rem;
+    }
+
+    .event-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+    }
+    .event-item {
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+    }
+    .event-count {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-color);
+    }
+    .event-type {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        text-transform: capitalize;
+    }
+
+    .rating-bars {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    .rating-bar-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .rating-bar-label {
+        width: 100px;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+    .rating-bar-container {
+        flex: 1;
+        height: 24px;
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .rating-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--primary-color), #1ed760);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 0.75rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--secondary-color);
+        min-width: 40px;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: var(--text-muted);
+    }
+    .empty-state i {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+
+    .two-column {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+    @media (max-width: 768px) {
+        .two-column {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h1><i class="fa-solid fa-chart-line"></i> Analytics Dashboard</h1>
+    <p>User engagement metrics and feedback analysis for iterative improvement</p>
+</div>
+
+<!-- Key Metrics -->
+<div class="metrics-grid">
+    <div class="metric-card">
+        <div class="metric-icon green">
+            <i class="fa-solid fa-clipboard-check"></i>
+        </div>
+        <div class="metric-value">{{ survey_stats.total_responses }}</div>
+        <div class="metric-label">Survey Responses</div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-icon blue">
+            <i class="fa-solid fa-users"></i>
+        </div>
+        <div class="metric-value">{{ unique_sessions }}</div>
+        <div class="metric-label">Unique Sessions</div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-icon purple">
+            <i class="fa-solid fa-thumbs-up"></i>
+        </div>
+        <div class="metric-value">{{ feedback_stats.like_rate }}%</div>
+        <div class="metric-label">Recommendation Like Rate</div>
+        <div class="metric-trend positive">{{ feedback_stats.likes }} likes / {{ feedback_stats.dislikes }} dislikes</div>
+    </div>
+
+    <div class="metric-card">
+        <div class="metric-icon orange">
+            <i class="fa-solid fa-share-nodes"></i>
+        </div>
+        <div class="metric-value">{{ survey_stats.would_recommend_pct }}%</div>
+        <div class="metric-label">Would Recommend</div>
+    </div>
+</div>
+
+<div class="two-column">
+    <!-- Survey Ratings -->
+    <div class="dashboard-section">
+        <div class="section-header">
+            <i class="fa-solid fa-star"></i>
+            <h2>Average Survey Ratings</h2>
+        </div>
+        {% if survey_stats.total_responses > 0 %}
+        <div class="rating-bars">
+            <div class="rating-bar-item">
+                <span class="rating-bar-label">Satisfaction</span>
+                <div class="rating-bar-container" role="meter" aria-valuenow="{{ survey_stats.avg_satisfaction|floatformat:1 }}" aria-valuemin="0" aria-valuemax="5" aria-label="Satisfaction: {{ survey_stats.avg_satisfaction|floatformat:1 }} out of 5">
+                    <div class="rating-bar-fill" style="width: {{ survey_stats.avg_satisfaction|floatformat:0 }}0%;">
+                        {{ survey_stats.avg_satisfaction|floatformat:1 }}/5
+                    </div>
+                </div>
+            </div>
+            <div class="rating-bar-item">
+                <span class="rating-bar-label">Discovery</span>
+                <div class="rating-bar-container" role="meter" aria-valuenow="{{ survey_stats.avg_discovery|floatformat:1 }}" aria-valuemin="0" aria-valuemax="5" aria-label="Discovery: {{ survey_stats.avg_discovery|floatformat:1 }} out of 5">
+                    <div class="rating-bar-fill" style="width: {{ survey_stats.avg_discovery|floatformat:0 }}0%;">
+                        {{ survey_stats.avg_discovery|floatformat:1 }}/5
+                    </div>
+                </div>
+            </div>
+            <div class="rating-bar-item">
+                <span class="rating-bar-label">Accuracy</span>
+                <div class="rating-bar-container" role="meter" aria-valuenow="{{ survey_stats.avg_accuracy|floatformat:1 }}" aria-valuemin="0" aria-valuemax="5" aria-label="Accuracy: {{ survey_stats.avg_accuracy|floatformat:1 }} out of 5">
+                    <div class="rating-bar-fill" style="width: {{ survey_stats.avg_accuracy|floatformat:0 }}0%;">
+                        {{ survey_stats.avg_accuracy|floatformat:1 }}/5
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fa-solid fa-inbox"></i>
+            <p>No survey responses yet</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Event Activity -->
+    <div class="dashboard-section">
+        <div class="section-header">
+            <i class="fa-solid fa-bolt"></i>
+            <h2>Event Activity</h2>
+        </div>
+        {% if event_counts %}
+        <div class="event-list">
+            {% for event_type, count in event_counts.items %}
+            <div class="event-item">
+                <div class="event-count">{{ count }}</div>
+                <div class="event-type">{{ event_type|cut:"_" }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="fa-solid fa-chart-simple"></i>
+            <p>No events recorded yet</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Daily Activity Chart -->
+<div class="dashboard-section">
+    <div class="section-header">
+        <i class="fa-solid fa-calendar-days"></i>
+        <h2>Daily Activity (Last 7 Days)</h2>
+    </div>
+    <div class="chart-container">
+        <canvas id="activityChart"></canvas>
+    </div>
+</div>
+
+<!-- User Feedback Quotes -->
+<div class="dashboard-section">
+    <div class="section-header">
+        <i class="fa-solid fa-comment-dots"></i>
+        <h2>Recent User Feedback</h2>
+    </div>
+    {% if recent_feedback_text %}
+    <div class="feedback-text-list">
+        {% for item in recent_feedback_text %}
+        <div class="feedback-text-item">
+            {% if item.liked_most %}
+            <div class="quote">"{{ item.liked_most }}"</div>
+            {% endif %}
+            {% if item.improvement_suggestion %}
+            <div class="suggestion"><strong>Suggestion:</strong> {{ item.improvement_suggestion }}</div>
+            {% endif %}
+            <div class="date">{{ item.created_at|date:"M d, Y" }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="fa-solid fa-comments"></i>
+        <p>No written feedback yet. Users can leave comments in the survey after interacting with recommendations.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('activityChart').getContext('2d');
+
+    const dailyData = {{ daily_activity|safe }};
+
+    // Prepare data for chart
+    const labels = dailyData.map(d => {
+        const date = new Date(d.date);
+        return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    });
+    const counts = dailyData.map(d => d.count);
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels.length ? labels : ['No data'],
+            datasets: [{
+                label: 'Events',
+                data: counts.length ? counts : [0],
+                backgroundColor: 'rgba(29, 185, 84, 0.6)',
+                borderColor: '#1db954',
+                borderWidth: 1,
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1,
+                        color: '#888'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                },
+                x: {
+                    ticks: {
+                        color: '#888'
+                    },
+                    grid: {
+                        display: false
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

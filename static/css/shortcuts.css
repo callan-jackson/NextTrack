@@ -1,0 +1,221 @@
+/**
+ * NextTrack Keyboard Shortcuts Modal Styles
+ *
+ * Accessible modal for displaying keyboard shortcuts
+ */
+
+/* Modal Overlay */
+.shortcuts-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(4px);
+    z-index: 99999;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.shortcuts-modal-overlay.active {
+    display: flex;
+}
+
+/* Modal Container */
+.shortcuts-modal {
+    background: var(--bg-card, #181818);
+    border: 1px solid var(--border-color, #282828);
+    border-radius: 16px;
+    max-width: 500px;
+    width: 100%;
+    max-height: 80vh;
+    overflow: hidden;
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6);
+    animation: shortcutsModalFadeIn 0.2s ease;
+}
+
+@keyframes shortcutsModalFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+/* Modal Header */
+.shortcuts-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border-color, #282828);
+    background: linear-gradient(135deg, rgba(29, 185, 84, 0.1), transparent);
+}
+
+.shortcuts-header h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-color, #fff);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.shortcuts-header h2 i {
+    color: var(--primary-color, #1DB954);
+}
+
+.shortcuts-close {
+    background: transparent;
+    border: none;
+    color: var(--text-muted, #b3b3b3);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 8px;
+    transition: all 0.2s;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.shortcuts-close:hover {
+    background: var(--bg-secondary, #282828);
+    color: var(--text-color, #fff);
+}
+
+.shortcuts-close:focus-visible {
+    outline: 2px solid var(--primary-color, #1DB954);
+    outline-offset: 2px;
+}
+
+/* Modal Body */
+.shortcuts-body {
+    padding: 1.25rem 1.5rem;
+    overflow-y: auto;
+    max-height: calc(80vh - 180px);
+}
+
+/* Shortcuts Sections */
+.shortcuts-section {
+    margin-bottom: 1.5rem;
+}
+
+.shortcuts-section:last-child {
+    margin-bottom: 0;
+}
+
+.shortcuts-section h3 {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted, #b3b3b3);
+    margin: 0 0 0.75rem 0;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color, #282828);
+}
+
+/* Shortcut Item */
+.shortcut-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 0;
+    gap: 1rem;
+}
+
+.shortcut-item span {
+    color: var(--text-muted, #b3b3b3);
+    font-size: 0.9rem;
+}
+
+/* Keyboard Keys */
+.shortcuts-modal kbd,
+.shortcuts-hint kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    padding: 0 0.5rem;
+    background: var(--bg-secondary, #282828);
+    border: 1px solid var(--border-color, #333);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-color, #fff);
+    box-shadow:
+        0 2px 0 var(--border-color, #333),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.2);
+}
+
+/* Modal Footer */
+.shortcuts-footer {
+    padding: 1rem 1.5rem;
+    background: var(--bg-secondary, #0d0d0d);
+    border-top: 1px solid var(--border-color, #282828);
+    text-align: center;
+}
+
+.shortcuts-footer p {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--text-muted, #b3b3b3);
+}
+
+/* Footer hint in page */
+.shortcuts-hint {
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.shortcuts-hint:hover {
+    opacity: 1;
+}
+
+.shortcuts-hint kbd {
+    font-size: 0.7rem;
+    min-width: 22px;
+    height: 22px;
+    margin: 0 0.15rem;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .shortcuts-modal {
+        max-height: 90vh;
+        border-radius: 12px;
+    }
+
+    .shortcuts-body {
+        max-height: calc(90vh - 180px);
+    }
+
+    .shortcuts-header {
+        padding: 1rem;
+    }
+
+    .shortcuts-body {
+        padding: 1rem;
+    }
+
+    .shortcuts-footer {
+        padding: 0.75rem 1rem;
+    }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    .shortcuts-modal {
+        animation: none;
+    }
+}

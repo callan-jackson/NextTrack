@@ -1,0 +1,99 @@
+{% extends "catalog/base.html" %}
+{% block title %}Audio Feature Explorer{% endblock %}
+
+{% block content %}
+<h1>Audio Feature Explorer</h1>
+<p class="text-muted">Explore how tracks cluster based on audio features. Each dot is a track — hover for details.</p>
+
+<div class="scatter-controls" style="display:flex; gap:1rem; flex-wrap:wrap; margin-bottom:1.5rem; align-items:end;">
+    <div>
+        <label for="x-axis">X Axis</label>
+        <select id="x-axis" class="form-control" style="min-width:140px;">
+            <option value="valence" selected>Valence (Happy)</option>
+            <option value="energy">Energy</option>
+            <option value="danceability">Danceability</option>
+            <option value="acousticness">Acousticness</option>
+            <option value="tempo">Tempo (BPM)</option>
+            <option value="popularity">Popularity</option>
+        </select>
+    </div>
+    <div>
+        <label for="y-axis">Y Axis</label>
+        <select id="y-axis" class="form-control" style="min-width:140px;">
+            <option value="valence">Valence (Happy)</option>
+            <option value="energy" selected>Energy</option>
+            <option value="danceability">Danceability</option>
+            <option value="acousticness">Acousticness</option>
+            <option value="tempo">Tempo (BPM)</option>
+            <option value="popularity">Popularity</option>
+        </select>
+    </div>
+    <div>
+        <label for="genre-filter">Genre</label>
+        <select id="genre-filter" class="form-control" style="min-width:140px;">
+            <option value="">All Genres</option>
+            {% for g in genres %}
+            <option value="{{ g }}">{{ g }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button id="load-btn" class="btn btn-primary" onclick="loadScatter()">Load</button>
+    <span id="count-label" class="text-muted" style="margin-left:auto;"></span>
+</div>
+
+<div style="position:relative; height:500px; background:var(--bg-card,#1e1e1e); border-radius:12px; padding:1rem;">
+    <canvas id="scatter-chart"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+var chart = null;
+function loadScatter() {
+    var x = document.getElementById('x-axis').value;
+    var y = document.getElementById('y-axis').value;
+    var genre = document.getElementById('genre-filter').value;
+    var url = '/api/tracks/scatter-data/?x=' + x + '&y=' + y;
+    if (genre) url += '&genre=' + encodeURIComponent(genre);
+
+    fetch(url).then(r => r.json()).then(function(data) {
+        document.getElementById('count-label').textContent = data.count + ' tracks';
+
+        var points = data.tracks.map(function(t) {
+            return {x: t[x], y: t[y], label: t.title + ' — ' + t.artist__name, pop: t.popularity};
+        });
+
+        if (chart) chart.destroy();
+        chart = new Chart(document.getElementById('scatter-chart'), {
+            type: 'scatter',
+            data: {
+                datasets: [{
+                    label: 'Tracks',
+                    data: points,
+                    backgroundColor: points.map(function(p) {
+                        var alpha = 0.3 + (p.pop / 100) * 0.7;
+                        return 'rgba(29, 185, 84, ' + alpha + ')';
+                    }),
+                    pointRadius: points.map(function(p) { return 2 + (p.pop / 100) * 4; }),
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: {title: {display:true, text: x, color:'#aaa'}, grid:{color:'rgba(255,255,255,0.1)'}, ticks:{color:'#aaa'}},
+                    y: {title: {display:true, text: y, color:'#aaa'}, grid:{color:'rgba(255,255,255,0.1)'}, ticks:{color:'#aaa'}}
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(ctx) { return ctx.raw.label; }
+                        }
+                    },
+                    legend: {display: false}
+                }
+            }
+        });
+    });
+}
+document.addEventListener('DOMContentLoaded', loadScatter);
+</script>
+{% endblock %}

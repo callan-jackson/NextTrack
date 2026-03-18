@@ -1,0 +1,271 @@
+{% extends 'catalog/base.html' %}
+
+{% block title %}My Feedback History{% endblock %}
+
+{% block meta_description %}View and manage your track ratings and feedback history. Undo feedback to re-rate recommendations on NextTrack.{% endblock %}
+
+{% block extra_head %}
+<style>
+    .page-header {
+        margin-bottom: 2rem;
+    }
+    .page-header h1 {
+        margin-bottom: 0.5rem;
+    }
+    .page-header p {
+        color: var(--text-muted);
+    }
+
+    /* Statistics Cards */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1.25rem;
+        margin-bottom: 2.5rem;
+    }
+    .stat-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: var(--text-color);
+        letter-spacing: -1px;
+    }
+    .stat-label {
+        font-size: 0.9rem;
+        color: var(--text-muted);
+        margin-top: 0.35rem;
+        font-weight: 500;
+    }
+    .stat-card.likes .stat-value {
+        color: var(--primary-color);
+    }
+    .stat-card.dislikes .stat-value {
+        color: var(--danger-color);
+    }
+
+    /* Feedback Table */
+    .feedback-table-container {
+        background: var(--bg-card);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .feedback-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .feedback-table th,
+    .feedback-table td {
+        padding: 1rem 1.25rem;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .feedback-table th {
+        background: var(--bg-secondary);
+        font-weight: 600;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+    }
+    .feedback-table tr:last-child td {
+        border-bottom: none;
+    }
+    .feedback-table tr:hover td {
+        background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Track Info */
+    .track-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    .track-name {
+        font-weight: 600;
+        color: var(--text-color);
+    }
+    .track-artist {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+
+    /* Rating Badge */
+    .rating-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    .rating-badge.like {
+        background: rgba(29, 185, 84, 0.15);
+        color: var(--primary-color);
+    }
+    .rating-badge.dislike {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--danger-color);
+    }
+
+    /* Date */
+    .date-cell {
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+
+    /* Delete Button */
+    .btn-delete {
+        background: transparent;
+        border: 1px solid var(--danger-color);
+        color: var(--danger-color);
+        padding: 0.4rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+    .btn-delete:hover {
+        background: var(--danger-color);
+        color: white;
+    }
+
+    /* Empty State */
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: var(--text-muted);
+    }
+    .empty-state i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.5;
+    }
+    .empty-state h3 {
+        color: var(--text-color);
+        margin-bottom: 0.5rem;
+    }
+    .empty-state p {
+        margin-bottom: 1.5rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+        .feedback-table th,
+        .feedback-table td {
+            padding: 0.75rem;
+        }
+        .feedback-table th:nth-child(3),
+        .feedback-table td:nth-child(3) {
+            display: none;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><i class="fa-solid fa-heart"></i> My Feedback History</h1>
+    <p>View and manage your track ratings. Undo feedback to re-rate recommendations.</p>
+</div>
+
+<!-- Statistics -->
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="stat-value">{{ total_feedback }}</div>
+        <div class="stat-label">Total Ratings</div>
+    </div>
+    <div class="stat-card likes">
+        <div class="stat-value">{{ likes }}</div>
+        <div class="stat-label"><i class="fa-solid fa-thumbs-up"></i> Likes</div>
+    </div>
+    <div class="stat-card dislikes">
+        <div class="stat-value">{{ dislikes }}</div>
+        <div class="stat-label"><i class="fa-solid fa-thumbs-down"></i> Dislikes</div>
+    </div>
+</div>
+
+{% if feedback_list %}
+<div class="feedback-table-container">
+    <table class="feedback-table">
+        <thead>
+            <tr>
+                <th>Track</th>
+                <th>Rating</th>
+                <th>Date</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for feedback in feedback_list %}
+            <tr>
+                <td>
+                    <div class="track-info">
+                        <span class="track-name">{{ feedback.track.title }}</span>
+                        <span class="track-artist">{{ feedback.track.artist.name }}</span>
+                    </div>
+                </td>
+                <td>
+                    {% if feedback.score %}
+                    <span class="rating-badge like">
+                        <i class="fa-solid fa-thumbs-up"></i> Like
+                    </span>
+                    {% else %}
+                    <span class="rating-badge dislike">
+                        <i class="fa-solid fa-thumbs-down"></i> Dislike
+                    </span>
+                    {% endif %}
+                </td>
+                <td class="date-cell">
+                    {{ feedback.created_at|date:"M d, Y" }}<br>
+                    <small>{{ feedback.created_at|time:"H:i" }}</small>
+                </td>
+                <td>
+                    <form method="post" action="{% url 'feedback_history' %}" style="display: inline;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete">
+                        <input type="hidden" name="feedback_id" value="{{ feedback.id }}">
+                        <button type="submit" class="btn-delete" title="Undo this feedback">
+                            <i class="fa-solid fa-undo"></i> Undo
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">
+        <i class="fa-regular fa-comment-dots"></i>
+    </div>
+    <h2>No Feedback Yet</h2>
+    <p>Rate some recommendations to see your feedback history here.</p>
+    <a href="{% url 'results' %}" class="btn btn-primary btn-large">
+        <i class="fa-solid fa-wand-magic-sparkles"></i> Get Recommendations
+    </a>
+</div>
+{% endif %}
+
+<div style="margin-top: 2rem; text-align: center;">
+    <a href="{% url 'results' %}" class="btn btn-secondary">
+        <i class="fa-solid fa-arrow-left"></i> Back to Recommendations
+    </a>
+</div>
+{% endblock %}
