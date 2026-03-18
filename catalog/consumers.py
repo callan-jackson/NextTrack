@@ -199,7 +199,16 @@ class SearchConsumer(AsyncWebsocketConsumer):
             )
 
         combined.sort(key=smart_sort_key)
-        return combined
+
+        # Deduplicate by title + artist (same song can have multiple Spotify IDs)
+        seen = set()
+        unique = []
+        for track in combined:
+            key = (track.title.lower().strip(), track.artist.name.lower().strip())
+            if key not in seen:
+                seen.add(key)
+                unique.append(track)
+        return unique
 
     @database_sync_to_async
     def serialize_tracks(self, tracks):

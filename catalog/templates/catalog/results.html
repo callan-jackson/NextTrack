@@ -1618,7 +1618,7 @@
                     {% if info.influenced_by %}
                     <div class="external-tags influenced-by">
                         <span class="external-tags-label">
-                            <i class="fa-solid fa-lightbulb"></i> Influenced by:
+                            <i class="fa-solid fa-lightbulb"></i> Influences:
                         </span>
                         {% for artist in info.influenced_by %}
                         <span class="external-tag influence-tag">{{ artist }}</span>
@@ -1869,7 +1869,7 @@
         <div class="influence-suggestions">
             <div class="suggestions-header">
                 <i class="fa-solid fa-star"></i>
-                <span>Artists who influenced your playlist:</span>
+                <span>Influences behind your playlist:</span>
             </div>
             <div class="suggestions-list">
                 {% for artist in influence_suggestions %}
@@ -2811,5 +2811,99 @@ document.querySelectorAll('.mood-btn').forEach(btn => {
         }
     });
 });
+
+// ============================
+// Survey Prompt (after 3+ feedback interactions)
+// ============================
+(function() {
+    var feedbackCount = parseInt(localStorage.getItem('nt_feedback_count') || '0');
+    var surveySent = localStorage.getItem('nt_survey_sent');
+
+    // Increment feedback count on each like/dislike
+    document.querySelectorAll('.like-btn, .dislike-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            feedbackCount++;
+            localStorage.setItem('nt_feedback_count', feedbackCount);
+            if (feedbackCount >= 3 && !surveySent) {
+                setTimeout(showSurveyModal, 1500);
+            }
+        });
+    });
+
+    function showSurveyModal() {
+        if (document.getElementById('survey-modal')) return;
+        var modal = document.createElement('div');
+        modal.id = 'survey-modal';
+        modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        modal.innerHTML = `
+            <div style="background:#1e1e2e;border-radius:16px;padding:32px;max-width:480px;width:90%;color:#fff;">
+                <h3 style="margin:0 0 8px;color:#1DB954;">Quick Feedback</h3>
+                <p style="color:#aaa;margin:0 0 20px;font-size:14px;">Help us improve NextTrack! Rate your experience.</p>
+                <form id="survey-form">
+                    <label style="display:block;margin-bottom:12px;font-size:14px;">
+                        Overall satisfaction (1-5)
+                        <input type="range" name="overall_satisfaction" min="1" max="5" value="4" style="width:100%;">
+                        <span class="sv" style="color:#1DB954;">4</span>
+                    </label>
+                    <label style="display:block;margin-bottom:12px;font-size:14px;">
+                        Discovery of new music (1-5)
+                        <input type="range" name="discovery_rating" min="1" max="5" value="4" style="width:100%;">
+                        <span class="sv" style="color:#1DB954;">4</span>
+                    </label>
+                    <label style="display:block;margin-bottom:12px;font-size:14px;">
+                        Recommendation accuracy (1-5)
+                        <input type="range" name="accuracy_rating" min="1" max="5" value="4" style="width:100%;">
+                        <span class="sv" style="color:#1DB954;">4</span>
+                    </label>
+                    <label style="display:block;margin-bottom:12px;font-size:14px;">
+                        What did you like most?
+                        <input type="text" name="liked_most" style="width:100%;padding:8px;border-radius:8px;border:1px solid #444;background:#2a2a3e;color:#fff;margin-top:4px;" placeholder="Optional">
+                    </label>
+                    <label style="display:block;margin-bottom:16px;font-size:14px;">
+                        Any suggestions?
+                        <input type="text" name="improvement_suggestion" style="width:100%;padding:8px;border-radius:8px;border:1px solid #444;background:#2a2a3e;color:#fff;margin-top:4px;" placeholder="Optional">
+                    </label>
+                    <div style="display:flex;gap:12px;">
+                        <button type="submit" style="flex:1;padding:10px;border:none;border-radius:8px;background:#1DB954;color:#fff;cursor:pointer;font-weight:600;">Submit</button>
+                        <button type="button" id="survey-dismiss" style="flex:1;padding:10px;border:1px solid #444;border-radius:8px;background:transparent;color:#aaa;cursor:pointer;">Not now</button>
+                    </div>
+                </form>
+            </div>`;
+        document.body.appendChild(modal);
+
+        // Update range display values
+        modal.querySelectorAll('input[type=range]').forEach(function(r) {
+            var span = r.parentElement.querySelector('.sv');
+            r.addEventListener('input', function() { span.textContent = r.value; });
+        });
+
+        document.getElementById('survey-dismiss').addEventListener('click', function() {
+            modal.remove();
+        });
+
+        document.getElementById('survey-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var fd = new FormData(this);
+            var payload = {
+                overall_satisfaction: parseInt(fd.get('overall_satisfaction')),
+                discovery_rating: parseInt(fd.get('discovery_rating')),
+                accuracy_rating: parseInt(fd.get('accuracy_rating')),
+                liked_most: fd.get('liked_most') || '',
+                improvement_suggestion: fd.get('improvement_suggestion') || '',
+                would_recommend: parseInt(fd.get('overall_satisfaction')) >= 3
+            };
+            fetch('/api/survey/', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': window.getCsrfToken ? window.getCsrfToken() : ''},
+                credentials: 'same-origin',
+                body: JSON.stringify(payload)
+            }).then(function() {
+                localStorage.setItem('nt_survey_sent', '1');
+                if (typeof showToast === 'function') showToast('Thanks for your feedback!', 'success');
+                modal.remove();
+            });
+        });
+    }
+})();
 </script>
 {% endblock %}

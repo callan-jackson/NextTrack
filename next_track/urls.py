@@ -21,6 +21,7 @@ from catalog.views_web import (
     SpotifyCallbackView,
     spotify_export_ajax,
     submit_feedback,
+    centroid_preview,
     create_snapshot,
     SharedPlaylistView,
     copy_shared_playlist,
@@ -91,6 +92,9 @@ urlpatterns = [
     path('api/v1/', include('catalog.urls_v1')),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+
+    # Centroid preview
+    path('api/centroid-preview/', centroid_preview, name='centroid_preview'),
 
     # Web frontend
     path('', HomeView.as_view(), name='home'),

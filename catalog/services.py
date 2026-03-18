@@ -1021,6 +1021,16 @@ def search_tracks(query: str, limit: int = 20) -> list[Track]:
 
     combined_results.sort(key=smart_sort_key)
 
+    # Deduplicate by title + artist (same song can have multiple Spotify IDs)
+    seen_dedup = set()
+    unique_results = []
+    for track in combined_results:
+        key = (track.title.lower().strip(), track.artist.name.lower().strip())
+        if key not in seen_dedup:
+            seen_dedup.add(key)
+            unique_results.append(track)
+    combined_results = unique_results
+
     logger.info(
         f"Hybrid search for '{query}': {len(local_results)} local + "
         f"{len(spotify_new_tracks)} new from Spotify = {len(combined_results)} total"

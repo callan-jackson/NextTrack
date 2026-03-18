@@ -30,6 +30,46 @@ from catalog.spotify_oauth import SpotifyUserClient, SpotifyOAuthError
 logger = logging.getLogger(__name__)
 
 
+def _log_analytics(request, event_type, track_id=None, metadata=None):
+    """Helper to log an analytics event for the current session."""
+    session_key = request.session.session_key
+    if not session_key:
+        request.session.create()
+        session_key = request.session.session_key
+    AnalyticsEvent.objects.create(
+        event_type=event_type,
+        session_key=session_key,
+        track_id=track_id,
+        metadata=metadata or {},
+    )
+
+
+@require_POST
+def centroid_preview(request: HttpRequest) -> JsonResponse:
+    """Return average audio features for a set of track IDs."""
+    try:
+        data = json.loads(request.body)
+        track_ids = data.get('track_ids', [])
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    if not track_ids:
+        return JsonResponse({'error': 'No track IDs provided'}, status=400)
+
+    tracks = Track.objects.filter(id__in=track_ids)
+    if not tracks.exists():
+        return JsonResponse({'error': 'No tracks found'}, status=404)
+
+    total = tracks.count()
+    return JsonResponse({
+        'energy': sum(t.energy for t in tracks) / total,
+        'valence': sum(t.valence for t in tracks) / total,
+        'danceability': sum(t.danceability for t in tracks) / total,
+        'acousticness': sum(t.acousticness for t in tracks) / total,
+        'tempo': sum(t.tempo for t in tracks) / total,
+    })
+
+
 def normalize_vector(vector_dict):
     """Normalize audio features to 0-1 range so the radar chart works."""
     normalized = {}
@@ -61,6 +101,7 @@ class HomeView(View):
 
         if query and len(query) >= 2:
             results = search_tracks(query, limit=20)
+            _log_analytics(request, 'search', metadata={'query': query, 'results': len(results)})
 
         playlist_ids = request.session.get('playlist', [])
         playlist_count = len(playlist_ids)
@@ -171,6 +212,11 @@ class RecommendationsView(View):
         )
 
         recommendations = result['recommendations']
+
+        _log_analytics(request, 'recommend', metadata={
+            'input_tracks': len(playlist_ids),
+            'results': len(recommendations),
+        })
 
         artist_info, input_artist_info, external_service = self._fetch_external_artist_data(
             recommendations, result['input_tracks']
@@ -511,6 +557,8 @@ def add_to_playlist_ajax(request: HttpRequest) -> JsonResponse:
     request.session['playlist'] = playlist
     request.session.modified = True
 
+    _log_analytics(request, 'add_playlist', track_id=track_id)
+
     return JsonResponse({
         'status': 'added',
         'count': len(playlist),
@@ -609,6 +657,7 @@ def submit_feedback(request: HttpRequest) -> JsonResponse:
                 score=new_score,
                 session_key=session_key
             )
+            _log_analytics(request, 'like' if new_score else 'dislike', track_id=track_id)
             return JsonResponse({
                 'status': 'created',
                 'feedback_id': feedback.id,
@@ -717,13 +766,17 @@ class AnalyticsDashboardView(View):
         )
 
         seven_days_ago = timezone.now() - timedelta(days=7)
-        daily_activity = list(
+        daily_activity_qs = (
             events.filter(created_at__gte=seven_days_ago)
             .annotate(date=TruncDate('created_at'))
             .values('date')
             .annotate(count=Count('id'))
             .order_by('date')
         )
+        daily_activity = [
+            {'date': entry['date'].isoformat(), 'count': entry['count']}
+            for entry in daily_activity_qs
+        ]
 
         feedback = RecommendationFeedback.objects.all()
         feedback_stats = {
@@ -745,7 +798,7 @@ class AnalyticsDashboardView(View):
             'satisfaction_dist': satisfaction_dist,
             'recent_feedback_text': list(recent_feedback_text),
             'event_counts': event_counts,
-            'daily_activity': daily_activity,
+            'daily_activity': json.dumps(daily_activity),
             'feedback_stats': feedback_stats,
             'unique_sessions': unique_sessions,
         })
