@@ -8,7 +8,7 @@ requires-python = ">=3.10"
 # pytest
 # =============================================================================
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "next_track.settings"
+DJANGO_SETTINGS_MODULE = "next_track.settings.testing"
 python_files = ["test_*.py"]
 python_classes = ["*TestCase"]
 python_functions = ["test_*"]
@@ -21,10 +21,9 @@ addopts = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
-# NOTE: Tests use an in-memory SQLite database by default when running under
-# pytest-django. If your project relies on PostgreSQL-specific features, set
-# DATABASES in a test-specific settings file or override via the
-# django_db_setup fixture.
+# The testing settings module runs the suite against an in-memory SQLite
+# database and a local-memory cache, so `pytest` works with no PostgreSQL or
+# Redis running. Performance benchmarks are marked `slow` and skipped by default.
 
 # =============================================================================
 # coverage

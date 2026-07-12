@@ -23,13 +23,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
+      - run: pip install -r requirements.txt -r requirements-dev.txt
       - run: python manage.py migrate
         env:
-          DJANGO_SETTINGS_MODULE: next_track.settings_test
+          DJANGO_SETTINGS_MODULE: next_track.settings.testing
       - run: pytest --tb=short -q
         env:
-          DJANGO_SETTINGS_MODULE: next_track.settings_test
+          DJANGO_SETTINGS_MODULE: next_track.settings.testing
 
   lint:
     runs-on: ubuntu-latest

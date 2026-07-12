@@ -1,0 +1,20 @@
+# Development and test dependencies.
+# Install alongside the runtime deps:  pip install -r requirements.txt -r requirements-dev.txt
+
+# Test runner
+pytest==8.3.4
+pytest-django==4.9.0
+
+# Test data factories (see catalog/tests/factories.py)
+factory-boy==3.3.1
+
+# Coverage reporting (see `make test-cov`)
+coverage==7.6.10
+
+# Linting and security scanning (also run in CI)
+ruff==0.8.6
+pip-audit==2.7.3
+bandit==1.8.0
+
+# Load testing (see locustfile.py)
+locust==2.32.4
