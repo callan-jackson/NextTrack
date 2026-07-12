@@ -4,7 +4,7 @@ from .base import *  # noqa: F401,F403
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver', '0.0.0.0']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'testserver', '0.0.0.0']  # nosec B104 — Host-header allowlist for dev/Docker, not a socket bind
 
 CORS_ALLOW_ALL_ORIGINS = True
 
