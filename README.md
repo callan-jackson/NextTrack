@@ -6,7 +6,7 @@ NextTrack recommends songs by the *sound* of the music rather than by collaborat
 
 It is built as a production-shaped Django application: an ASGI stack (Daphne + Channels) for real-time search over WebSockets, Celery + Redis for background work, PostgreSQL for storage, a versioned REST API with OpenAPI docs, and Docker Compose for one-command local setup.
 
-> This is my final-year BSc Computer Science project. It is the largest system I have built end to end, and the README below is written so you can stand it up and read the interesting parts quickly.
+> This is the largest system I have built end to end. The README below is written so you can stand it up and read the interesting parts quickly.
 
 ---
 
