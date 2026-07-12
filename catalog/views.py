@@ -2,29 +2,36 @@
 
 import csv
 import logging
+
 from django.core.cache import cache
 from django.db import models
 from django.db.models import Avg, Count
 from django.http import StreamingHttpResponse
-from rest_framework import viewsets, status, serializers as drf_serializers
+from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema, inline_serializer
+from rest_framework import serializers as drf_serializers
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
-from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema, OpenApiExample, OpenApiParameter, inline_serializer
 
-from catalog.models import Genre, Artist, Track, UserSurvey, AnalyticsEvent
-from catalog.serializers import (
-    GenreSerializer,
-    ArtistSerializer,
-    TrackSerializer,
-    TrackListSerializer,
-    RecommendationRequestSerializer,
-)
-from catalog.services import get_recommendations_from_sequence, search_tracks, euclidean_distance, get_feature_vector, get_genre_lineage_data
+from catalog.models import AnalyticsEvent, Artist, Genre, Track, UserSurvey
 from catalog.pagination import CursorPaginationByPopularity
+from catalog.serializers import (
+    ArtistSerializer,
+    GenreSerializer,
+    TrackListSerializer,
+    TrackSerializer,
+)
+from catalog.services import (
+    euclidean_distance,
+    get_feature_vector,
+    get_genre_lineage_data,
+    get_recommendations_from_sequence,
+    search_tracks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -260,7 +267,7 @@ class TrackViewSet(viewsets.ReadOnlyModelViewSet):
             ).values('name', 'track_count').order_by('-track_count')[:20]
         )
 
-        from django.db.models import Case, When, IntegerField
+        from django.db.models import Case, IntegerField, When
         pop_agg = Track.objects.aggregate(
             very_popular=Count(Case(When(popularity__gte=80, then=1), output_field=IntegerField())),
             popular=Count(Case(When(popularity__gte=60, popularity__lt=80, then=1), output_field=IntegerField())),
@@ -396,7 +403,6 @@ class TrackViewSet(viewsets.ReadOnlyModelViewSet):
         if cached:
             return Response(cached)
 
-        import numpy as np
         target_vec = get_feature_vector(track)
         candidates = Track.objects.select_related('artist').prefetch_related('genres').exclude(pk=pk)
 
@@ -549,8 +555,9 @@ class TrackViewSet(viewsets.ReadOnlyModelViewSet):
         if not playlist_tracks:
             return Response({'error': 'No valid playlist tracks found'}, status=status.HTTP_404_NOT_FOUND)
 
-        from catalog.services import calculate_centroid
         import numpy as np
+
+        from catalog.services import calculate_centroid
 
         feature_vectors = [get_feature_vector(t) for t in playlist_tracks]
         centroid = calculate_centroid(feature_vectors)
@@ -701,7 +708,7 @@ class TrackViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['post'], url_path='activity-playlist')
     def activity_playlist(self, request: Request) -> Response:
         """Generate a structured playlist for an activity."""
-        from catalog.services import generate_activity_playlist, ACTIVITY_PRESETS
+        from catalog.services import ACTIVITY_PRESETS, generate_activity_playlist
 
         activity = request.data.get('activity')
         if not activity or activity not in ACTIVITY_PRESETS:
@@ -927,10 +934,12 @@ class RecommendationMetricsView(APIView):
         description="Returns quality metrics: average distance, diversity, feature coverage, feedback ratios.",
     )
     def get(self, request: Request) -> Response:
-        from catalog.models import RecommendationFeedback
-        from django.db.models import Avg, Count, Q
         from datetime import timedelta
+
+        from django.db.models import Avg, Count
         from django.utils import timezone
+
+        from catalog.models import RecommendationFeedback
 
         cache_key = "rec_quality_metrics"
         cached = safe_cache_get(cache_key)

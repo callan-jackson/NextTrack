@@ -8,7 +8,7 @@ import time
 import pytest
 from django.test import TestCase
 
-from catalog.models import Genre, Artist, Track
+from catalog.models import Artist, Genre, Track
 from catalog.services import get_recommendations_from_sequence
 
 

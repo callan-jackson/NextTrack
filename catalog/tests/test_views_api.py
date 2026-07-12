@@ -1,11 +1,10 @@
 """API endpoint tests for catalog views (recommend, survey, analytics, feedback)."""
 
 from django.test import TestCase, override_settings
-from rest_framework.test import APITestCase
 from rest_framework import status
+from rest_framework.test import APITestCase
 
-from catalog.models import Genre, Artist, Track, AnalyticsEvent, RecommendationFeedback
-
+from catalog.models import Artist, Genre, RecommendationFeedback, Track
 
 # ---------------------------------------------------------------------------
 # Existing tests migrated from catalog/tests.py
@@ -794,6 +793,7 @@ class FeedbackSessionIsolationTestCase(TestCase):
     def test_feedback_created_via_api(self):
         """Feedback API creates a feedback record in the database."""
         import json
+
         from django.test import Client
 
         client = Client()
@@ -815,6 +815,7 @@ class FeedbackSessionIsolationTestCase(TestCase):
     def test_toggle_undo_across_requests(self):
         """Submitting the same like twice toggles (creates then removes)."""
         import json
+
         from django.test import Client
 
         client = Client()
@@ -842,6 +843,7 @@ class FeedbackSessionIsolationTestCase(TestCase):
     def test_switch_vote_across_requests(self):
         """Switching from like to dislike updates the feedback."""
         import json
+
         from django.test import Client
 
         client = Client()

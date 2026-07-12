@@ -2,8 +2,7 @@
 
 from django.test import TestCase
 
-from catalog.models import Genre, Artist, Track, UserSurvey
-
+from catalog.models import Artist, UserSurvey
 
 # ---------------------------------------------------------------------------
 # Existing tests migrated from catalog/tests.py

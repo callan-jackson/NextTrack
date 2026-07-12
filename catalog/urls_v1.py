@@ -1,9 +1,17 @@
 """API v1 URL configuration — mirrors the main catalog/urls.py router."""
 
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from catalog.views import TrackViewSet, GenreViewSet, ArtistViewSet, SurveyAPIView, AnalyticsAPIView, FeedbackAPIView, RecommendationMetricsView
+from catalog.views import (
+    AnalyticsAPIView,
+    ArtistViewSet,
+    FeedbackAPIView,
+    GenreViewSet,
+    RecommendationMetricsView,
+    SurveyAPIView,
+    TrackViewSet,
+)
 
 router = DefaultRouter()
 router.register(r'genres', GenreViewSet)

@@ -1,7 +1,7 @@
 """Django base settings for the NextTrack project."""
 
-import os
 from pathlib import Path
+
 from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -10,6 +10,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 # SECURITY
 # =============================================================================
 from django.core.management.utils import get_random_secret_key
+
 _default_secret_key = get_random_secret_key()
 SECRET_KEY = config('SECRET_KEY', default=_default_secret_key)
 
@@ -193,6 +194,7 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 
 from celery.schedules import crontab  # noqa: E402
+
 CELERY_BEAT_SCHEDULE = {
     'warm-popular-cache-daily': {
         'task': 'catalog.tasks.warm_cache_for_popular_tracks',

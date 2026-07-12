@@ -1,12 +1,11 @@
 """Web view integration tests for the Django frontend pages (task 2.5)."""
 
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
 
-from catalog.models import Genre, Artist, Track, RecommendationFeedback
-
+from catalog.models import Artist, Genre, Track
 
 # Common overrides: disable whitenoise manifest, use locmem cache,
 # switch to DB-backed sessions so _force_session helper works.
@@ -25,6 +24,7 @@ WEB_TEST_SETTINGS = {
 def _force_session(client, data):
     """Persist session data into the Django test client (DB backend)."""
     from importlib import import_module
+
     from django.conf import settings
 
     engine = import_module(settings.SESSION_ENGINE)

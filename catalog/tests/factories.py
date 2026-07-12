@@ -1,7 +1,8 @@
 """Factory classes for catalog test data using factory_boy."""
 
 import factory
-from catalog.models import Genre, Artist, Track, RecommendationFeedback
+
+from catalog.models import Artist, Genre, RecommendationFeedback, Track
 
 
 class GenreFactory(factory.django.DjangoModelFactory):

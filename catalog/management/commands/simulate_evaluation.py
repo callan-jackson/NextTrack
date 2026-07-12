@@ -22,16 +22,16 @@ Usage:
 """
 
 import random
-import numpy as np
+
 from django.core.management.base import BaseCommand
 
-from catalog.models import Track, RecommendationFeedback
+from catalog.models import RecommendationFeedback, Track
 from catalog.services import (
-    get_recommendations_from_sequence,
+    DISLIKE_WEIGHT,
+    LIKE_WEIGHT,
     centroid_to_vector,
     euclidean_distance,
-    LIKE_WEIGHT,
-    DISLIKE_WEIGHT
+    get_recommendations_from_sequence,
 )
 
 
@@ -100,7 +100,7 @@ class Command(BaseCommand):
         centroid_a = baseline_result['centroid']
         centroid_a_vector = centroid_to_vector(centroid_a)
 
-        self.stdout.write(f'Baseline Centroid A:')
+        self.stdout.write('Baseline Centroid A:')
         if verbose:
             for key, value in centroid_a.items():
                 self.stdout.write(f'  {key}: {value:.4f}')
@@ -142,7 +142,7 @@ class Command(BaseCommand):
         centroid_b = adaptive_result['centroid']
         centroid_b_vector = centroid_to_vector(centroid_b)
 
-        self.stdout.write(f'Adaptive Centroid B:')
+        self.stdout.write('Adaptive Centroid B:')
         if verbose:
             for key, value in centroid_b.items():
                 self.stdout.write(f'  {key}: {value:.4f}')
@@ -180,7 +180,7 @@ class Command(BaseCommand):
                 self.stdout.write(f'  {name}: {change:+.6f} {direction}')
 
             self.stdout.write('')
-            self.stdout.write(f'Algorithm Parameters:')
+            self.stdout.write('Algorithm Parameters:')
             self.stdout.write(f'  LIKE_WEIGHT: {LIKE_WEIGHT}')
             self.stdout.write(f'  DISLIKE_WEIGHT: {DISLIKE_WEIGHT}')
 

@@ -2,7 +2,7 @@
 
 from rest_framework import serializers
 
-from catalog.models import Genre, Artist, Track
+from catalog.models import Artist, Genre, Track
 
 
 class GenreSerializer(serializers.ModelSerializer):

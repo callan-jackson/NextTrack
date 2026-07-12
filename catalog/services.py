@@ -42,12 +42,11 @@ import logging
 from typing import Any, Optional
 
 import numpy as np
-from django.db.models import Case, When, Q, QuerySet
+from django.db.models import Case, Q, QuerySet, When
+from django.utils import timezone
 from django.utils.text import slugify
 
-from django.utils import timezone
-
-from catalog.models import Track, Artist, Genre, RecommendationFeedback, PrecomputedRecommendation
+from catalog.models import Artist, Genre, PrecomputedRecommendation, RecommendationFeedback, Track
 
 logger = logging.getLogger(__name__)
 
@@ -660,7 +659,6 @@ def materialize_recommendations(track: Track, n: int = 20) -> int:
 
     Returns the number of recommendations stored.
     """
-    from datetime import timedelta
 
     recommendations = calculate_similarity(track.id, limit=n)
 
@@ -1323,7 +1321,6 @@ REGION_GROUPS = {
 def precompute_feature_vectors(queryset):
     """Convert a Track queryset into a pandas DataFrame of normalized feature vectors for fast similarity computation."""
     import pandas as pd
-    import numpy as np
 
     tracks = list(queryset.values('id', 'valence', 'energy', 'danceability', 'acousticness', 'tempo'))
     if not tracks:
@@ -1822,7 +1819,6 @@ def get_influence_recommendations(track_ids: list[str], limit: int = 10) -> dict
 
 def calculate_diversity_from_external_data(recommendations: list[Track], artist_info: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Calculate diversity stats from external data for the results page."""
-    import math
 
     if not recommendations:
         return {}

@@ -1,7 +1,8 @@
 """Lightweight Prometheus-compatible metrics endpoint."""
 
 from django.http import HttpResponse
-from catalog.models import Track, Artist, Genre, RecommendationFeedback, AnalyticsEvent, UserSurvey
+
+from catalog.models import AnalyticsEvent, Artist, Genre, RecommendationFeedback, Track, UserSurvey
 
 
 def prometheus_metrics(request):

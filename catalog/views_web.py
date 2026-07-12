@@ -2,30 +2,28 @@
 
 import json
 import logging
-from django.shortcuts import render, redirect, get_object_or_404
+
+from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views import View
-from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_protect
 
-from catalog.models import Genre, Track, RecommendationFeedback, UserSurvey, AnalyticsEvent, SharedPlaylist
+from catalog.external_data import get_live_external_service
+from catalog.forms import PreferenceForm
+from catalog.models import AnalyticsEvent, Genre, RecommendationFeedback, SharedPlaylist, Track, UserSurvey
 from catalog.services import (
-    search_tracks,
-    get_recommendations_from_sequence,
-    get_enhanced_recommendations,
-    get_available_filters,
-    get_influence_recommendations,
-    calculate_categorical_preferences,
+    COUNTRY_NAMES,
     apply_categorical_preferences,
     apply_external_data_enhancements,
-    get_influence_based_suggestions,
+    calculate_categorical_preferences,
     calculate_diversity_from_external_data,
-    COUNTRY_NAMES
+    get_available_filters,
+    get_enhanced_recommendations,
+    get_influence_based_suggestions,
+    search_tracks,
 )
-from catalog.external_data import get_live_external_service
-from catalog.forms import SearchForm, PreferenceForm, FeedbackForm
-from catalog.spotify_oauth import SpotifyUserClient, SpotifyOAuthError
+from catalog.spotify_oauth import SpotifyOAuthError, SpotifyUserClient
 
 logger = logging.getLogger(__name__)
 
@@ -474,7 +472,6 @@ class RecommendationsView(View):
             query_string = '&'.join(f'{k}={v}' for k, v in preferences.items())
             return redirect(f'/results/?{query_string}')
 
-        playlist_ids = request.session.get('playlist', [])
         return render(request, self.template_name, {
             'error': 'Invalid preference values. Please enter values between 0 and 1.',
             'preference_form': preference_form,
@@ -726,9 +723,10 @@ class AnalyticsDashboardView(View):
 
     def get(self, request: HttpRequest) -> HttpResponse:
         """Render the analytics dashboard."""
+        from datetime import timedelta
+
         from django.db.models import Avg, Count
         from django.db.models.functions import TruncDate
-        from datetime import timedelta
         from django.utils import timezone
 
         surveys = UserSurvey.objects.all()
@@ -870,7 +868,7 @@ class SpotifyCallbackView(View):
 
         try:
             client = SpotifyUserClient()
-            token_data = client.exchange_code_for_token(code, redirect_uri)
+            client.exchange_code_for_token(code, redirect_uri)
 
             track_ids = request.session.get('spotify_export_tracks', [])
 
@@ -1067,7 +1065,7 @@ class TrackCompareView(View):
     template_name = 'catalog/compare.html'
 
     def get(self, request: HttpRequest, track_a: str = None, track_b: str = None) -> HttpResponse:
-        from catalog.services import get_feature_vector, euclidean_distance
+        from catalog.services import euclidean_distance, get_feature_vector
 
         context = {'comparison': None}
 

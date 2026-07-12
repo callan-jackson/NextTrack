@@ -3,13 +3,13 @@
 from django.core.management.base import BaseCommand
 from django.db.models import Count
 
-from catalog.models import Artist, Genre
 from catalog.external_data import (
+    ExternalDataError,
     MusicBrainzClient,
     WikidataClient,
     enrich_artist_from_external_sources,
-    ExternalDataError
 )
+from catalog.models import Artist, Genre
 
 
 class Command(BaseCommand):
@@ -83,8 +83,8 @@ class Command(BaseCommand):
 
             if results:
                 artist = results[0]
-                self.stdout.write(self.style.SUCCESS(f'  Connection: OK'))
-                self.stdout.write(f'  Test search for "Queen":')
+                self.stdout.write(self.style.SUCCESS('  Connection: OK'))
+                self.stdout.write('  Test search for "Queen":')
                 self.stdout.write(f'    Name: {artist.get("name")}')
                 self.stdout.write(f'    MBID: {artist.get("id")}')
                 self.stdout.write(f'    Country: {artist.get("country")}')
@@ -94,7 +94,7 @@ class Command(BaseCommand):
                 if mbid:
                     details = mb_client.get_artist_details(mbid)
                     if details:
-                        self.stdout.write(f'  Detailed info:')
+                        self.stdout.write('  Detailed info:')
                         self.stdout.write(f'    Formed: {details.get("formed_year")}')
                         self.stdout.write(f'    Tags: {", ".join(t["name"] for t in details.get("tags", [])[:5])}')
                         self.stdout.write(f'    Wikidata: {details.get("wikidata_id")}')
@@ -112,8 +112,8 @@ class Command(BaseCommand):
             entity = wd_client.get_entity('Q15862')
 
             if entity:
-                self.stdout.write(self.style.SUCCESS(f'  Connection: OK'))
-                self.stdout.write(f'  Test entity Q15862 (Queen):')
+                self.stdout.write(self.style.SUCCESS('  Connection: OK'))
+                self.stdout.write('  Test entity Q15862 (Queen):')
                 self.stdout.write(f'    Label: {entity.get("label")}')
                 self.stdout.write(f'    Description: {entity.get("description")}')
                 self.stdout.write(f'    Formed: {entity.get("formed_year")}')
@@ -197,7 +197,7 @@ class Command(BaseCommand):
             if artist:
                 self.stdout.write(f'Found in database: {artist.name} (ID: {artist.id})')
             else:
-                self.stdout.write(self.style.WARNING(f'Artist not found in database'))
+                self.stdout.write(self.style.WARNING('Artist not found in database'))
                 self.stdout.write('Fetching directly from external sources...')
         except Exception as e:
             self.stdout.write(self.style.ERROR(f'Database error: {e}'))

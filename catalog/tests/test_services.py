@@ -1,28 +1,25 @@
 """Unit tests for catalog.services (recommendation engine, feature vectors, diversity)."""
 
-import math
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import numpy as np
 from django.test import TestCase
 
-from catalog.models import Genre, Artist, Track, RecommendationFeedback
+from catalog.models import Artist, Genre, RecommendationFeedback, Track
 from catalog.services import (
-    get_feature_vector,
-    euclidean_distance,
-    calculate_centroid,
-    apply_preferences,
-    get_recommendations_from_sequence,
-    calculate_similarity,
-    get_candidates_with_serendipity,
     _compute_diversity_score,
-    calculate_categorical_preferences,
-    apply_categorical_preferences,
-    get_enhanced_recommendations,
     _generate_explanations,
+    apply_categorical_preferences,
+    apply_preferences,
+    calculate_categorical_preferences,
+    calculate_centroid,
+    euclidean_distance,
+    get_candidates_with_serendipity,
+    get_enhanced_recommendations,
+    get_feature_vector,
+    get_recommendations_from_sequence,
     search_tracks,
 )
-
 
 # ---------------------------------------------------------------------------
 # Existing tests migrated from catalog/tests.py
@@ -1164,9 +1161,7 @@ class FactoryBasedServiceTestCase(TestCase):
 
     def test_recommendation_with_factory_tracks(self):
         """Factories produce valid data that works with the recommendation engine."""
-        from catalog.tests.factories import (
-            ArtistFactory, TrackFactory, GenreFactory
-        )
+        from catalog.tests.factories import ArtistFactory, GenreFactory, TrackFactory
         genre = GenreFactory(name='factory_test_genre')
         artist = ArtistFactory(id='factory_artist_1', name='Factory Artist')
 
@@ -1174,7 +1169,7 @@ class FactoryBasedServiceTestCase(TestCase):
             id='factory_input', artist=artist, genres=[genre],
             valence=0.5, energy=0.5
         )
-        candidate = TrackFactory(
+        TrackFactory(
             id='factory_candidate', artist=artist, genres=[genre],
             valence=0.52, energy=0.52
         )
@@ -1185,9 +1180,7 @@ class FactoryBasedServiceTestCase(TestCase):
 
     def test_feedback_factory(self):
         """RecommendationFeedbackFactory creates valid feedback entries."""
-        from catalog.tests.factories import (
-            RecommendationFeedbackFactory, TrackFactory, GenreFactory
-        )
+        from catalog.tests.factories import GenreFactory, RecommendationFeedbackFactory, TrackFactory
         genre = GenreFactory(name='fb_factory_genre')
         track = TrackFactory(id='fb_factory_track', genres=[genre])
 

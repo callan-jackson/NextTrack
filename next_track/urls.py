@@ -1,34 +1,35 @@
 """URL configuration for the NextTrack project."""
 
 import time
-from django.contrib import admin
-from django.urls import path, include
+
 from django.conf import settings
 from django.conf.urls.static import static
-from django.http import JsonResponse
+from django.contrib import admin
 from django.db import connection
+from django.http import JsonResponse
+from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
-from catalog.metrics import prometheus_metrics
 
+from catalog.metrics import prometheus_metrics
 from catalog.views_web import (
+    AnalyticsDashboardView,
+    FeedbackListView,
+    GenreLineageView,
     HomeView,
+    MoodJourneyView,
     PlaylistBuilderView,
     RecommendationsView,
-    FeedbackListView,
-    AnalyticsDashboardView,
-    add_to_playlist_ajax,
-    SpotifyExportInitView,
+    ScatterPlotView,
+    SharedPlaylistView,
     SpotifyCallbackView,
+    SpotifyExportInitView,
+    TrackCompareView,
+    add_to_playlist_ajax,
+    centroid_preview,
+    copy_shared_playlist,
+    create_snapshot,
     spotify_export_ajax,
     submit_feedback,
-    centroid_preview,
-    create_snapshot,
-    SharedPlaylistView,
-    copy_shared_playlist,
-    TrackCompareView,
-    MoodJourneyView,
-    ScatterPlotView,
-    GenreLineageView,
 )
 
 

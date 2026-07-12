@@ -8,8 +8,7 @@ Usage:
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from catalog.models import Genre, Artist, Track
-
+from catalog.models import Artist, Genre, Track
 
 # Deterministic seed data -- every run produces identical records.
 GENRES = [

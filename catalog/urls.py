@@ -1,9 +1,17 @@
 """URL routing for the Catalog REST API."""
 
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from catalog.views import GenreViewSet, ArtistViewSet, TrackViewSet, SurveyAPIView, AnalyticsAPIView, FeedbackAPIView, RecommendationMetricsView
+from catalog.views import (
+    AnalyticsAPIView,
+    ArtistViewSet,
+    FeedbackAPIView,
+    GenreViewSet,
+    RecommendationMetricsView,
+    SurveyAPIView,
+    TrackViewSet,
+)
 
 router = DefaultRouter()
 router.register(r'genres', GenreViewSet, basename='genre')

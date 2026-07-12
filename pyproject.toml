@@ -58,5 +58,12 @@ line-length = 120
 select = ["E", "F", "W", "I"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# Django settings use the standard star-import layering; entrypoints must set
+# DJANGO_SETTINGS_MODULE before importing the app.
+"next_track/settings/*" = ["F403", "F405"]
+"next_track/asgi.py" = ["E402"]
+"next_track/settings/base.py" = ["E402"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["catalog", "next_track"]

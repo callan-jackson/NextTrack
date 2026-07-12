@@ -1,8 +1,8 @@
 """Thread-safe Spotify API client using Client Credentials auth."""
 
 import logging
-import time
 import threading
+import time
 from datetime import datetime, timedelta
 
 import requests

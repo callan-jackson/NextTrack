@@ -24,8 +24,8 @@ Usage Examples:
     python manage.py test_spotify --track-id 4u7EnebtmKWzUH433cf5Qv
 """
 
-from django.core.management.base import BaseCommand
 from django.conf import settings
+from django.core.management.base import BaseCommand
 
 
 class Command(BaseCommand):
@@ -112,7 +112,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.MIGRATE_HEADING('Step 2: Testing Authentication'))
 
         try:
-            from catalog.spotify_client import SpotifyClient, SpotifyAuthError
+            from catalog.spotify_client import SpotifyAuthError, SpotifyClient
 
             client = SpotifyClient()
 

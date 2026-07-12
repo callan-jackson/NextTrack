@@ -1,7 +1,6 @@
 """Forms for search, preferences, and feedback validation."""
 
 from django import forms
-from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 class PreferenceForm(forms.Form):

@@ -14,12 +14,13 @@ ID Generation Strategy:
 """
 
 import logging
+
+import pandas as pd
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils.text import slugify
-import pandas as pd
 
-from catalog.models import Genre, Artist, Track
+from catalog.models import Artist, Genre, Track
 
 logger = logging.getLogger(__name__)
 

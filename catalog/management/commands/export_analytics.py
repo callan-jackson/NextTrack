@@ -6,8 +6,8 @@ import sys
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand
+from django.db.models import Avg, Count
 from django.utils import timezone
-from django.db.models import Count, Avg
 
 from catalog.models import AnalyticsEvent, RecommendationFeedback, UserSurvey
 

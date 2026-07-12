@@ -4,14 +4,13 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
 
-from catalog.models import Genre, Artist, Track, RecommendationFeedback
+from catalog.models import Artist, Genre, RecommendationFeedback, Track
 from catalog.services import (
-    ingest_track_from_spotify_data,
     apply_external_data_enhancements,
-    get_recommendations_from_sequence,
     calculate_categorical_preferences,
+    get_recommendations_from_sequence,
+    ingest_track_from_spotify_data,
 )
-
 
 # ---------------------------------------------------------------------------
 # Spotify ingestion integration tests (task 2.1)
@@ -361,6 +360,7 @@ class CeleryTaskIntegrationTestCase(TestCase):
     def test_generate_recommendations_task_populates_cache(self):
         """generate_recommendations_task computes recs and stores them in cache."""
         from django.core.cache import cache
+
         from catalog.tasks import generate_recommendations_task
 
         cache.clear()

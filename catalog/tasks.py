@@ -1,8 +1,9 @@
 """Celery background tasks for cache warming and data harvesting."""
 
 import logging
-import requests
 from datetime import timedelta
+
+import requests
 from celery import shared_task
 from django.core.cache import cache
 from django.db import DatabaseError
@@ -15,8 +16,8 @@ logger = logging.getLogger(__name__)
 def generate_recommendations_task(self, track_id, limit=10):
     """Pre-compute and cache recommendations for a track."""
     from catalog.models import Track
-    from catalog.services import calculate_similarity
     from catalog.serializers import TrackSerializer
+    from catalog.services import calculate_similarity
 
     try:
         source_track = Track.objects.select_related('artist').prefetch_related('genres').get(id=track_id)
@@ -65,7 +66,7 @@ def warm_cache_for_popular_tracks(popularity_threshold=70, limit=10):
     success_count = 0
     for track_id in popular_tracks:
         try:
-            result = generate_recommendations_task.delay(track_id, limit)
+            generate_recommendations_task.delay(track_id, limit)
             success_count += 1
         except Exception as e:
             logger.error(f"Failed to queue task for track {track_id}: {e}")
@@ -95,13 +96,8 @@ def clear_recommendation_cache():
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def enrich_artist_data_task(self, artist_id):
     """Fetch and store external metadata for an artist."""
+    from catalog.external_data import ExternalDataError, MusicBrainzClient, RateLimitError, WikidataClient
     from catalog.models import Artist, Genre
-    from catalog.external_data import (
-        MusicBrainzClient,
-        WikidataClient,
-        ExternalDataError,
-        RateLimitError
-    )
 
     try:
         artist = Artist.objects.get(id=artist_id)
@@ -190,18 +186,6 @@ def enrich_artist_data_task(self, artist_id):
                         artist.formed_year = wd_data['formed_year']
                         if 'formed_year' not in update_fields:
                             update_fields.append('formed_year')
-
-                    # extract keywords from description
-                    extracted_keywords = _extract_keywords(artist.description)
-                    if extracted_keywords:
-                        logger.info(
-                            f"NLP extracted {len(extracted_keywords)} keywords "
-                            f"from {artist.name}: {extracted_keywords}"
-                        )
-                        for keyword in extracted_keywords:
-                            genre, _ = Genre.objects.get_or_create(name=keyword)
-                            for track in artist.tracks.all():
-                                track.genres.add(genre)
 
                 # link artists by musical influence
                 influenced_by_ids = wd_data.get('influenced_by_ids', [])
@@ -321,8 +305,8 @@ def enrich_artists_batch(limit=100, force=False):
 def harvest_related_tracks_task(self, track_id, limit=20):
     """Fetch related tracks from Spotify and add new ones to our DB."""
     from catalog.models import Track
-    from catalog.spotify_client import SpotifyClient, SpotifyClientError
     from catalog.services import ingest_track_from_spotify_data
+    from catalog.spotify_client import SpotifyClient, SpotifyClientError
 
     try:
         try:
@@ -445,8 +429,8 @@ def harvest_batch_from_popular_tracks(popularity_threshold=80, tracks_limit=50, 
 def ingest_track_by_spotify_id(spotify_track_id):
     """Fetch a single track from Spotify and add it to our DB."""
     from catalog.models import Track
-    from catalog.spotify_client import SpotifyClient, SpotifyClientError
     from catalog.services import ingest_track_from_spotify_data
+    from catalog.spotify_client import SpotifyClient, SpotifyClientError
 
     if Track.objects.filter(id=spotify_track_id).exists():
         track = Track.objects.get(id=spotify_track_id)
@@ -604,9 +588,10 @@ def cleanup_stale_data():
 @shared_task
 def refresh_popular_artist_cache():
     """Proactively refresh Redis-cached external data for frequently accessed artists."""
-    from catalog.models import AnalyticsEvent
-    from catalog.external_data import get_live_external_service
     from django.core.cache import cache
+
+    from catalog.external_data import get_live_external_service
+    from catalog.models import AnalyticsEvent
 
     # Find top recommended artists from last 7 days
     seven_days_ago = timezone.now() - timedelta(days=7)
