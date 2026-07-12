@@ -229,7 +229,7 @@ class MusicBrainzClient:
     """Client for MusicBrainz API with rate limiting."""
 
     BASE_URL = "https://musicbrainz.org/ws/2"
-    USER_AGENT = "NextTrack/1.0 (University Project - Music Recommendation API)"
+    USER_AGENT = "NextTrack/1.0 (https://github.com/callan-jackson/NextTrack)"
 
     def __init__(self):
         self._last_request_time = 0
@@ -395,7 +395,7 @@ class WikidataClient:
 
     SPARQL_ENDPOINT = "https://query.wikidata.org/sparql"
     API_ENDPOINT = "https://www.wikidata.org/w/api.php"
-    USER_AGENT = "NextTrack/1.0 (University Project - Music Recommendation API)"
+    USER_AGENT = "NextTrack/1.0 (https://github.com/callan-jackson/NextTrack)"
 
     def get_entity(self, wikidata_id: str, language: str = 'en') -> Optional[WikidataEntity]:
         """Fetch entity data by Wikidata Q-ID."""
