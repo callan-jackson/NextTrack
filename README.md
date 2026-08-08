@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="NextTrack" width="380">
+</p>
+
 # NextTrack
 
 **A content-based music recommendation platform — Django, real-time WebSocket search, and a from-scratch recommendation engine over audio-feature vectors.**
