@@ -91,6 +91,14 @@ body {
     text-decoration: none;
     letter-spacing: -0.5px;
     transition: var(--transition-fast);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.nav-brand-logo {
+    height: 1.5em;
+    width: auto;
 }
 
 .nav-brand a:hover {
