@@ -12,3 +12,6 @@ media/
 .DS_Store
 .venv/
 Images/
+
+# Generated locally per deployment; contains the database credential
+pgbouncer/userlist.txt

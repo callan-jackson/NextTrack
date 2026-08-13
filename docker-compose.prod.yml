@@ -266,6 +266,7 @@ services:
     restart: always
     volumes:
       - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
     environment:
       - DB_USER=${POSTGRES_USER:-music_user}
       - DB_PASSWORD=${POSTGRES_PASSWORD}
