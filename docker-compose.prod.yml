@@ -98,6 +98,11 @@ services:
       - DJANGO_SETTINGS_MODULE=next_track.settings.production
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-music_user}:${POSTGRES_PASSWORD}@pgbouncer:6432/${POSTGRES_DB:-music_db}
+      - POSTGRES_DB=${POSTGRES_DB:-music_db}
+      - POSTGRES_USER=${POSTGRES_USER:-music_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=pgbouncer
+      - POSTGRES_PORT=6432
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - REDIS_HOST=redis
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
@@ -152,6 +157,11 @@ services:
       - DJANGO_SETTINGS_MODULE=next_track.settings.production
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-music_user}:${POSTGRES_PASSWORD}@pgbouncer:6432/${POSTGRES_DB:-music_db}
+      - POSTGRES_DB=${POSTGRES_DB:-music_db}
+      - POSTGRES_USER=${POSTGRES_USER:-music_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=pgbouncer
+      - POSTGRES_PORT=6432
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
       - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
@@ -198,6 +208,11 @@ services:
       - DEBUG=False
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-music_user}:${POSTGRES_PASSWORD}@pgbouncer:6432/${POSTGRES_DB:-music_db}
+      - POSTGRES_DB=${POSTGRES_DB:-music_db}
+      - POSTGRES_USER=${POSTGRES_USER:-music_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=pgbouncer
+      - POSTGRES_PORT=6432
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
     deploy:
       resources:
