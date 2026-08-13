@@ -183,7 +183,7 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    command: celery -A next_track beat -l info
+    command: celery -A next_track beat -l info -s /tmp/celerybeat-schedule
     read_only: true
     tmpfs:
       - /tmp
