@@ -15,3 +15,6 @@ Images/
 
 # Generated locally per deployment; contains the database credential
 pgbouncer/userlist.txt
+
+# static/images must never be ignored (Images/ above is case-insensitive on macOS)
+!static/images/**
