@@ -110,6 +110,10 @@ services:
       # Search runs on Deezer's public API by default, which needs no
       # credentials. Spotify is optional and only used for playlist export, or
       # for search if MUSIC_SEARCH_PROVIDER is set to spotify.
+      #
+      # NUMBA_CACHE_DIR: librosa's numba kernels try to write a JIT cache into
+      # site-packages, which is read-only here. Point it at the tmpfs instead.
+      - NUMBA_CACHE_DIR=/tmp/numba-cache
       - MUSIC_SEARCH_PROVIDER=${MUSIC_SEARCH_PROVIDER:-deezer}
       - AUDIO_ANALYSIS_ENABLED=${AUDIO_ANALYSIS_ENABLED:-True}
       - AUDIO_ANALYSIS_ON_INGEST=${AUDIO_ANALYSIS_ON_INGEST:-True}
@@ -170,7 +174,9 @@ services:
       - POSTGRES_HOST=pgbouncer
       - POSTGRES_PORT=6432
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
-      # The worker runs audio analysis, so it needs the same provider config.
+      # The worker runs audio analysis, so it needs the same provider config
+      # and the same writable location for numba's JIT cache.
+      - NUMBA_CACHE_DIR=/tmp/numba-cache
       - MUSIC_SEARCH_PROVIDER=${MUSIC_SEARCH_PROVIDER:-deezer}
       - AUDIO_ANALYSIS_ENABLED=${AUDIO_ANALYSIS_ENABLED:-True}
       - AUDIO_ANALYSIS_ON_INGEST=${AUDIO_ANALYSIS_ON_INGEST:-True}
