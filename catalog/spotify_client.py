@@ -37,6 +37,13 @@ class SpotifyClient:
     TOKEN_URL = "https://accounts.spotify.com/api/token"
     API_BASE_URL = "https://api.spotify.com/v1"
 
+    # Spotify's February 2026 Web API migration cut the /search limit ceiling
+    # from 50 to 10 (applied to existing apps on 2026-03-09). Anything above
+    # this is rejected with 400 "Invalid limit", which surfaced as an empty
+    # result set rather than an error, because search_tracks() swallows
+    # SpotifyClientError and returns [].
+    SEARCH_LIMIT_MAX = 10
+
     def __init__(self):
         """Set up credentials and token state."""
         self._token = None
@@ -168,7 +175,7 @@ class SpotifyClient:
                 params={
                     'q': query,
                     'type': 'track',
-                    'limit': min(limit, 50)
+                    'limit': max(1, min(limit, self.SEARCH_LIMIT_MAX))
                 }
             )
 
