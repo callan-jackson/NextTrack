@@ -150,7 +150,13 @@ services:
       dockerfile: Dockerfile
     restart: always
     stop_grace_period: 60s
-    command: celery -A next_track worker -l warning --concurrency=2 --without-mingle --without-gossip
+    # concurrency=1: this container is capped at 1 CPU, so a second worker adds
+    # no throughput for CPU-bound audio analysis while doubling peak memory -
+    # two concurrent librosa runs pushed it into the 1G limit and the kernel
+    # SIGKILLed a child (WorkerLostError).
+    # max-memory-per-child recycles a child that balloons, so RSS from numba's
+    # JIT and decoded audio cannot accumulate across tasks.
+    command: celery -A next_track worker -l warning --concurrency=1 --max-memory-per-child=400000 --without-mingle --without-gossip
     read_only: true
     tmpfs:
       - /tmp

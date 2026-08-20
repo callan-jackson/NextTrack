@@ -243,11 +243,22 @@ CACHES = {
 # =============================================================================
 # DJANGO CHANNELS (WebSocket)
 # =============================================================================
+# The channel layer has to authenticate to Redis. The (host, port) tuple form
+# carries no password, so wherever Redis runs with requirepass - as it does in
+# production - every WebSocket connection failed with
+# "redis.exceptions.AuthenticationError: Authentication required" and the UI
+# silently fell back to plain form search. REDIS_URL carries the credentials,
+# so prefer it and keep the tuple only as a no-credentials fallback.
+_CHANNEL_REDIS_URL = config('REDIS_URL', default='')
+
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [(config('REDIS_HOST', default='redis'), 6379)],
+            'hosts': (
+                [_CHANNEL_REDIS_URL] if _CHANNEL_REDIS_URL
+                else [(config('REDIS_HOST', default='redis'), 6379)]
+            ),
         },
     },
 }
