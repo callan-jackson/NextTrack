@@ -107,8 +107,15 @@ services:
       - REDIS_HOST=redis
       - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1}
       - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-}
-      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:?SPOTIFY_CLIENT_ID is required}
-      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:?SPOTIFY_CLIENT_SECRET is required}
+      # Search runs on Deezer's public API by default, which needs no
+      # credentials. Spotify is optional and only used for playlist export, or
+      # for search if MUSIC_SEARCH_PROVIDER is set to spotify.
+      - MUSIC_SEARCH_PROVIDER=${MUSIC_SEARCH_PROVIDER:-deezer}
+      - AUDIO_ANALYSIS_ENABLED=${AUDIO_ANALYSIS_ENABLED:-True}
+      - AUDIO_ANALYSIS_ON_INGEST=${AUDIO_ANALYSIS_ON_INGEST:-True}
+      - AUDIO_ANALYSIS_BATCH_SIZE=${AUDIO_ANALYSIS_BATCH_SIZE:-200}
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
       - LASTFM_API_KEY=${LASTFM_API_KEY:-}
       - GENIUS_ACCESS_TOKEN=${GENIUS_ACCESS_TOKEN:-}
     healthcheck:
@@ -163,8 +170,13 @@ services:
       - POSTGRES_HOST=pgbouncer
       - POSTGRES_PORT=6432
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
-      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
-      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
+      # The worker runs audio analysis, so it needs the same provider config.
+      - MUSIC_SEARCH_PROVIDER=${MUSIC_SEARCH_PROVIDER:-deezer}
+      - AUDIO_ANALYSIS_ENABLED=${AUDIO_ANALYSIS_ENABLED:-True}
+      - AUDIO_ANALYSIS_ON_INGEST=${AUDIO_ANALYSIS_ON_INGEST:-True}
+      - AUDIO_ANALYSIS_BATCH_SIZE=${AUDIO_ANALYSIS_BATCH_SIZE:-200}
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID:-}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET:-}
       - LASTFM_API_KEY=${LASTFM_API_KEY:-}
       - GENIUS_ACCESS_TOKEN=${GENIUS_ACCESS_TOKEN:-}
     healthcheck:
