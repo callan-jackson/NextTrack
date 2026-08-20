@@ -72,8 +72,8 @@ class HomeViewTestCase(TestCase):
         self.assertEqual(response.context['results'], [])
         self.assertEqual(response.context['query'], '')
 
-    @patch('catalog.services._fetch_and_ingest_from_spotify', return_value=[])
-    def test_home_search_returns_results(self, mock_spotify):
+    @patch('catalog.services._fetch_and_ingest_from_provider', return_value=[])
+    def test_home_search_returns_results(self, mock_provider):
         """GET /?q=Home returns matching tracks in context."""
         response = self.client.get('/', {'q': 'Home'})
         self.assertEqual(response.status_code, 200)
@@ -81,8 +81,8 @@ class HomeViewTestCase(TestCase):
         result_ids = [t.id for t in results]
         self.assertIn('home_track', result_ids)
 
-    @patch('catalog.services._fetch_and_ingest_from_spotify', return_value=[])
-    def test_home_search_short_query_returns_empty(self, mock_spotify):
+    @patch('catalog.services._fetch_and_ingest_from_provider', return_value=[])
+    def test_home_search_short_query_returns_empty(self, mock_provider):
         """GET /?q=H (single char) returns empty results."""
         response = self.client.get('/', {'q': 'H'})
         self.assertEqual(response.status_code, 200)

@@ -1265,8 +1265,8 @@ class SearchRankingTestCase(TestCase):
         )
         cls.track_partial_title.genres.add(cls.genre)
 
-    @patch('catalog.services._fetch_and_ingest_from_spotify', return_value=[])
-    def test_exact_artist_ranked_first(self, mock_spotify):
+    @patch('catalog.services._fetch_and_ingest_from_provider', return_value=[])
+    def test_exact_artist_ranked_first(self, mock_provider):
         """Tracks by exact artist name match should appear first."""
         results = search_tracks('Aurora', limit=20)
         result_ids = [t.id for t in results]
@@ -1276,8 +1276,8 @@ class SearchRankingTestCase(TestCase):
         idx_starts = result_ids.index('rank_t2')
         self.assertLess(idx_exact, idx_starts)
 
-    @patch('catalog.services._fetch_and_ingest_from_spotify', return_value=[])
-    def test_startswith_before_exact_title(self, mock_spotify):
+    @patch('catalog.services._fetch_and_ingest_from_provider', return_value=[])
+    def test_startswith_before_exact_title(self, mock_provider):
         """Startswith artist match should rank before exact title match."""
         results = search_tracks('Aurora', limit=20)
         result_ids = [t.id for t in results]
@@ -1285,8 +1285,8 @@ class SearchRankingTestCase(TestCase):
         idx_exact_title = result_ids.index('rank_t3')
         self.assertLess(idx_starts, idx_exact_title)
 
-    @patch('catalog.services._fetch_and_ingest_from_spotify', return_value=[])
-    def test_exact_title_before_partial(self, mock_spotify):
+    @patch('catalog.services._fetch_and_ingest_from_provider', return_value=[])
+    def test_exact_title_before_partial(self, mock_provider):
         """Exact title match should rank before partial artist match."""
         results = search_tracks('Aurora', limit=20)
         result_ids = [t.id for t in results]
@@ -1294,8 +1294,8 @@ class SearchRankingTestCase(TestCase):
         idx_partial = result_ids.index('rank_t4')
         self.assertLess(idx_exact_title, idx_partial)
 
-    @patch('catalog.services._fetch_and_ingest_from_spotify', return_value=[])
-    def test_overall_ranking_order(self, mock_spotify):
+    @patch('catalog.services._fetch_and_ingest_from_provider', return_value=[])
+    def test_overall_ranking_order(self, mock_provider):
         """Full ranking: exact artist > startswith > exact title > partial artist > partial title."""
         results = search_tracks('Aurora', limit=20)
         result_ids = [t.id for t in results]

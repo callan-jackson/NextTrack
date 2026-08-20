@@ -141,6 +141,52 @@ class Track(models.Model):
         help_text="False if using default values"
     )
 
+    SOURCE_LEGACY = 'legacy'
+    SOURCE_CHOICES = [
+        (SOURCE_LEGACY, 'Legacy import'),
+        ('csv', 'CSV dataset'),
+        ('spotify', 'Spotify API'),
+        ('deezer', 'Deezer API'),
+        ('seed', 'Seed data'),
+    ]
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        default=SOURCE_LEGACY,
+        db_index=True,
+        help_text="Which provider this track was ingested from"
+    )
+
+    isrc = models.CharField(
+        max_length=15,
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="International Standard Recording Code, stable across providers"
+    )
+
+    preview_url = models.URLField(
+        max_length=1000,
+        blank=True,
+        null=True,
+        help_text=(
+            "Provider preview clip (~30s) used for audio analysis. Deezer signs "
+            "these with an expiry, so treat a stored value as stale and refetch."
+        )
+    )
+
+    analysis_version = models.IntegerField(
+        default=0,
+        db_index=True,
+        help_text="Version of the extractor that produced the audio features; 0 = never analysed locally"
+    )
+
+    analyzed_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When audio features were last computed from the preview clip"
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True,
         null=True,
@@ -162,6 +208,8 @@ class Track(models.Model):
             models.Index(fields=['is_audio_analyzed']),
             models.Index(fields=['created_at']),
             models.Index(fields=['release_year']),
+            # Drives the analysis backfill sweep, which filters on both.
+            models.Index(fields=['is_audio_analyzed', 'analysis_version']),
         ]
 
     def __str__(self):
@@ -169,8 +217,15 @@ class Track(models.Model):
 
     @property
     def has_reliable_features(self):
-        """True if audio features are from Spotify, not defaults."""
+        """True if audio features are real measurements rather than defaults."""
         return self.is_audio_analyzed
+
+    @property
+    def needs_audio_analysis(self):
+        """True if this track should be queued for local audio analysis."""
+        from catalog.audio_analysis import ANALYSIS_VERSION
+
+        return self.analysis_version < ANALYSIS_VERSION and not self.is_audio_analyzed
 
     @property
     def mood_tags(self):

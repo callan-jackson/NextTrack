@@ -78,32 +78,33 @@ class SearchConsumer(AsyncWebsocketConsumer):
             detail=f"{local_count} local tracks"
         )
 
-        # Spotify API search
+        # Live provider search
+        provider = await self.get_provider_name()
         await self.send_status(
-            "Querying Spotify API for additional results...",
+            f"Querying {provider.title()} for additional results...",
             phase=3,
             total_phases=4
         )
-        spotify_results = await self.search_spotify(query, seen_keys)
-        spotify_count = len(spotify_results)
+        provider_results = await self.search_provider(query, seen_keys)
+        provider_count = len(provider_results)
 
-        if spotify_count > 0:
+        if provider_count > 0:
             await self.send_status(
-                f"Ingested {spotify_count} new tracks from Spotify",
+                f"Ingested {provider_count} new tracks from {provider.title()}",
                 phase=3,
                 total_phases=4,
-                detail=f"+{spotify_count} from Spotify"
+                detail=f"+{provider_count} from {provider.title()}"
             )
         else:
             await self.send_status(
-                "No additional tracks from Spotify (all already in database)",
+                f"No additional tracks from {provider.title()} (all already in database)",
                 phase=3,
                 total_phases=4
             )
 
         # Merge and rank
         await self.send_status("Ranking results by relevance...", phase=4, total_phases=4)
-        combined_results = await self.merge_and_rank(local_results, spotify_results, query)
+        combined_results = await self.merge_and_rank(local_results, provider_results, query)
         total_count = len(combined_results)
 
         tracks_data = await self.serialize_tracks(combined_results[:20])
@@ -114,7 +115,10 @@ class SearchConsumer(AsyncWebsocketConsumer):
             'count': min(total_count, 20),
             'total_found': total_count,
             'local_count': local_count,
-            'spotify_count': spotify_count,
+            # Kept under the original key so the existing frontend keeps working.
+            'spotify_count': provider_count,
+            'provider': provider,
+            'provider_count': provider_count,
             'query': query
         }))
 
@@ -159,24 +163,31 @@ class SearchConsumer(AsyncWebsocketConsumer):
         return local_results, seen_keys
 
     @database_sync_to_async
-    def search_spotify(self, query, existing_keys, limit=20):
-        """Search Spotify and ingest any new tracks found."""
-        from catalog.services import _fetch_and_ingest_from_spotify
+    def get_provider_name(self):
+        """Name of the configured live-search provider, for status messages."""
+        from catalog.services import get_search_provider_name
+
+        return get_search_provider_name()
+
+    @database_sync_to_async
+    def search_provider(self, query, existing_keys, limit=20):
+        """Search the configured provider and ingest any new tracks found."""
+        from catalog.services import _fetch_and_ingest_from_provider
 
         try:
-            return _fetch_and_ingest_from_spotify(
+            return _fetch_and_ingest_from_provider(
                 query,
                 limit=limit,
                 existing_keys=existing_keys
             )
         except Exception as e:
-            logger.error(f"Spotify search failed: {e}")
+            logger.error(f"Provider search failed: {e}")
             return []
 
     @database_sync_to_async
-    def merge_and_rank(self, local_results, spotify_results, query):
-        """Combine local + Spotify results and sort by relevance."""
-        combined = local_results + spotify_results
+    def merge_and_rank(self, local_results, provider_results, query):
+        """Combine local + provider results and sort by relevance."""
+        combined = local_results + provider_results
         query_lower = query.lower().strip()
 
         def smart_sort_key(track):
@@ -218,10 +229,15 @@ class SearchConsumer(AsyncWebsocketConsumer):
 
         result = []
         for track in tracks:
-            if hasattr(track, 'created_at') and track.created_at and track.created_at > one_hour_ago:
-                source_badge = 'live'
-            elif track.is_audio_analyzed:
-                source_badge = 'catalog'
+            if track.is_audio_analyzed:
+                # Recently discovered and already analysed.
+                if track.created_at and track.created_at > one_hour_ago:
+                    source_badge = 'live'
+                else:
+                    source_badge = 'catalog'
+            elif track.preview_url:
+                # Queued for audio analysis; features are placeholders for now.
+                source_badge = 'pending'
             else:
                 source_badge = 'limited'
 

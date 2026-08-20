@@ -985,13 +985,13 @@ def search_tracks(query: str, limit: int = 20) -> list[Track]:
 
     logger.info(f"Local search for '{query}' found {len(local_results)} matches")
 
-    spotify_new_tracks = _fetch_and_ingest_from_spotify(
+    provider_new_tracks = _fetch_and_ingest_from_provider(
         query,
         limit=limit,
         existing_keys=seen_keys
     )
 
-    combined_results = local_results + spotify_new_tracks
+    combined_results = local_results + provider_new_tracks
 
     # Prioritize artist matches over genre matches to reduce noise
     query_lower = query.lower().strip()
@@ -1031,10 +1031,253 @@ def search_tracks(query: str, limit: int = 20) -> list[Track]:
 
     logger.info(
         f"Hybrid search for '{query}': {len(local_results)} local + "
-        f"{len(spotify_new_tracks)} new from Spotify = {len(combined_results)} total"
+        f"{len(provider_new_tracks)} new from {get_search_provider_name()} = "
+        f"{len(combined_results)} total"
     )
 
     return combined_results[:limit]
+
+
+def _queue_audio_analysis(tracks):
+    """Queue newly ingested tracks for local audio-feature extraction.
+
+    Analysis takes seconds per track, so it must never happen inline on the
+    search path. Failing to queue is not an error worth surfacing: the track is
+    already saved with neutral defaults and the scheduled backfill sweep will
+    pick it up. In particular this must not raise when Celery's broker is
+    unreachable, or search would break whenever Redis is down.
+    """
+    from django.conf import settings
+
+    if not getattr(settings, 'AUDIO_ANALYSIS_ON_INGEST', True):
+        return 0
+
+    from catalog.audio_analysis import is_available
+
+    if not is_available():
+        logger.info("Audio analysis backend unavailable, leaving tracks with neutral defaults")
+        return 0
+
+    queued = 0
+    for track in tracks:
+        if not track.preview_url:
+            continue
+        try:
+            from catalog.tasks import analyze_track_audio_task
+
+            analyze_track_audio_task.delay(track.id)
+            queued += 1
+        except Exception as exc:
+            logger.warning(f"Could not queue audio analysis for {track.id}: {exc}")
+            break
+
+    if queued:
+        logger.info(f"Queued {queued} tracks for audio analysis")
+    return queued
+
+
+def _existing_title_artist_keys(candidate_titles):
+    """Return (title, artist) keys already in the DB for the given titles.
+
+    Providers hand back the same recording under many IDs (remasters, single
+    vs album versions, regional releases). Matching on primary key alone lets
+    those through as duplicate rows, so this does one bulk lookup by title and
+    compares case-insensitively in Python.
+    """
+    if not candidate_titles:
+        return set()
+
+    rows = Track.objects.filter(
+        title__in=list(candidate_titles)
+    ).values_list('title', 'artist__name')
+
+    return {(t.lower().strip(), a.lower().strip()) for t, a in rows}
+
+
+def get_search_provider_name():
+    """Name of the configured live-search provider."""
+    from django.conf import settings
+
+    return getattr(settings, 'MUSIC_SEARCH_PROVIDER', 'deezer').lower()
+
+
+def _fetch_and_ingest_from_provider(query, limit=20, existing_keys=None, provider=None):
+    """Search the configured provider and ingest anything new.
+
+    Dispatches to the provider-specific implementation. Both return a list of
+    freshly created Track rows (never previously seen ones), so the caller can
+    merge them with local results.
+    """
+    provider = (provider or get_search_provider_name()).lower()
+
+    if provider == 'spotify':
+        return _fetch_and_ingest_from_spotify(query, limit=limit, existing_keys=existing_keys)
+
+    if provider != 'deezer':
+        logger.warning(f"Unknown MUSIC_SEARCH_PROVIDER '{provider}', falling back to deezer")
+
+    return _fetch_and_ingest_from_deezer(query, limit=limit, existing_keys=existing_keys)
+
+
+def _fetch_and_ingest_from_deezer(query, limit=20, existing_keys=None):
+    """Search Deezer and save new tracks to the local DB.
+
+    Tracks land with neutral feature values and is_audio_analyzed=False, then
+    get real vectors from catalog.audio_analysis once the queued task has run
+    against their preview clip. Genres are deliberately not fetched here -
+    Deezer exposes them per album, and one extra request per result would put
+    ~25 sequential API calls on the search path. The analysis task fills them
+    in instead, since it is already talking to the API off the critical path.
+    """
+    from catalog.deezer_client import DeezerClientError, get_deezer_client
+
+    if existing_keys is None:
+        existing_keys = set()
+
+    try:
+        client = get_deezer_client()
+        results = client.search_tracks(query, limit=limit)
+
+        if not results:
+            return []
+
+        parsed = []
+        for raw in results:
+            raw_id = raw.get('id')
+            title = (raw.get('title_short') or raw.get('title') or '').strip()
+            artist_name = (raw.get('artist') or {}).get('name', '').strip()
+
+            if not raw_id or not title or not artist_name:
+                continue
+
+            parsed.append({
+                'raw': raw,
+                'track_id': f"dz-{raw_id}",
+                'key': (title.lower(), artist_name.lower()),
+                'title': title,
+            })
+
+        # One query for the whole page rather than an exists() per result; this
+        # runs on the search path, where a round trip per candidate is felt.
+        known_ids = set(
+            Track.objects.filter(
+                id__in=[p['track_id'] for p in parsed]
+            ).values_list('id', flat=True)
+        )
+
+        candidates = [
+            p for p in parsed
+            if p['track_id'] not in known_ids and p['key'] not in existing_keys
+        ]
+
+        if not candidates:
+            logger.info("All Deezer results already in database")
+            return []
+
+        # Second dedup pass against the whole table, not just the local results
+        # the caller happened to see.
+        already_stored = _existing_title_artist_keys({c['title'] for c in candidates})
+
+        ingested = []
+        for candidate in candidates:
+            if candidate['key'] in already_stored or candidate['key'] in existing_keys:
+                continue
+
+            try:
+                track = ingest_track_from_deezer_data(candidate['raw'])
+            except Exception as exc:
+                logger.error(f"Failed to ingest Deezer track {candidate['track_id']}: {exc}")
+                continue
+
+            if track:
+                ingested.append(track)
+                existing_keys.add(candidate['key'])
+
+        logger.info(f"Ingested {len(ingested)} tracks from Deezer for '{query}'")
+
+        _queue_audio_analysis(ingested)
+
+        return ingested
+
+    except DeezerClientError as exc:
+        logger.error(f"Deezer API error during search: {exc}")
+        return []
+    except Exception as exc:
+        logger.error(f"Unexpected error during Deezer ingestion: {exc}")
+        return []
+
+
+def _deezer_rank_to_popularity(rank):
+    """Map Deezer's 0-1,000,000 rank onto the 0-100 popularity scale.
+
+    Kept on the same scale as the Spotify-era values so ranking comparisons in
+    smart_sort_key stay meaningful across mixed-provenance rows.
+    """
+    try:
+        rank = int(rank or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, min(100, round(rank / 10000)))
+
+
+def ingest_track_from_deezer_data(deezer_track: dict[str, Any]) -> Optional[Track]:
+    """Create a Track from a Deezer search/track payload.
+
+    Audio features are left at neutral defaults with is_audio_analyzed=False;
+    they are filled in later from the preview clip. Storing the preview URL is
+    what makes that possible, but note Deezer signs those URLs with an expiry,
+    so the analysis task refetches rather than trusting a stale value.
+    """
+    try:
+        raw_id = deezer_track['id']
+        track_id = f"dz-{raw_id}"
+        title = (deezer_track.get('title_short') or deezer_track.get('title') or 'Unknown')[:500]
+
+        artist_data = deezer_track.get('artist') or {}
+        artist_name = (artist_data.get('name') or 'Unknown')[:255]
+
+        artist = _get_or_create_artist(str(artist_data.get('id') or ''), artist_name, None)
+
+        release_year = None
+        release_date = deezer_track.get('release_date') or (deezer_track.get('album') or {}).get('release_date')
+        if release_date:
+            try:
+                release_year = int(str(release_date)[:4])
+            except (ValueError, IndexError):
+                pass
+
+        track = Track.objects.create(
+            id=track_id,
+            title=title,
+            artist=artist,
+            # Neutral placeholders until audio analysis runs.
+            valence=0.5,
+            energy=0.5,
+            danceability=0.5,
+            acousticness=0.5,
+            tempo=120.0,
+            loudness=-10.0,
+            popularity=_deezer_rank_to_popularity(deezer_track.get('rank')),
+            is_audio_analyzed=False,
+            analysis_version=0,
+            release_year=release_year,
+            artist_name=artist_name,
+            artist_popularity=artist.popularity,
+            source='deezer',
+            isrc=(deezer_track.get('isrc') or None),
+            preview_url=(deezer_track.get('preview') or None),
+        )
+
+        # Genres arrive later, with the analysis task's album lookup.
+        default_genre, _ = Genre.objects.get_or_create(name='unknown')
+        track.genres.add(default_genre)
+
+        logger.debug(f"Ingested Deezer track: {title} by {artist_name}")
+        return track
+
+    except Exception as exc:
+        logger.error(f"Error ingesting Deezer track: {exc}")
+        return None
 
 
 def _fetch_and_ingest_from_spotify(query, limit=20, existing_keys=None):
@@ -1201,6 +1444,8 @@ def ingest_track_from_spotify_data(
             release_year=release_year,
             artist_name=artist_name,
             artist_popularity=artist.popularity,
+            source='spotify',
+            analysis_version=0,
         )
 
         _assign_genres_to_track(track, artist_spotify_id, spotify_client)

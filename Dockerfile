@@ -18,8 +18,13 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# libsndfile backs audio decoding for catalog/audio_analysis.py. The soundfile
+# wheel bundles its own copy on the platforms we build for, but installing the
+# system library too means decoding still works if pip falls back to the pure
+# -any wheel, which links against the system copy instead.
 RUN apt-get update && apt-get install -y \
     libpq5 \
+    libsndfile1 \
     curl \
     && rm -rf /var/lib/apt/lists/*
 

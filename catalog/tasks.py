@@ -646,3 +646,211 @@ def refresh_popular_artist_cache():
 
     logger.info(f"Refreshed external data cache for {refreshed}/{len(top_artists)} artists")
     return {'status': 'success', 'refreshed': refreshed, 'total_checked': len(top_artists)}
+
+
+# ============================================================================
+# AUDIO ANALYSIS
+# ============================================================================
+# Feature vectors are computed locally from provider preview clips. This
+# replaces Spotify's /audio-features endpoint, deprecated 2024-11-27, which
+# left every newly ingested track sitting on neutral 0.5 defaults and therefore
+# equidistant from every centroid the recommender computes.
+
+
+def _refresh_preview_url(track):
+    """Fetch a current preview URL for a track.
+
+    Deezer signs preview links with an expiry timestamp, so a URL stored at
+    ingest time will eventually stop resolving. Rather than trusting the stored
+    value indefinitely we refetch it from the API when analysis is due.
+    """
+    if not track.id.startswith('dz-'):
+        return track.preview_url
+
+    from catalog.deezer_client import get_deezer_client
+
+    deezer_id = track.id[3:]
+    payload = get_deezer_client().get_track(deezer_id)
+
+    if not payload:
+        return track.preview_url
+
+    return payload.get('preview') or track.preview_url
+
+
+def _apply_deezer_metadata(track, payload):
+    """Backfill genres and release year from a Deezer track payload.
+
+    These are skipped at ingest to keep the search path fast - one album lookup
+    per search result would mean ~25 sequential API calls before the user sees
+    anything - so the analysis task, already off the critical path, picks them
+    up instead.
+    """
+    from catalog.models import Genre
+
+    updated = []
+
+    if not track.release_year:
+        release_date = payload.get('release_date') or (payload.get('album') or {}).get('release_date')
+        if release_date:
+            try:
+                track.release_year = int(str(release_date)[:4])
+                updated.append('release_year')
+            except (ValueError, IndexError):
+                pass
+
+    album_id = (payload.get('album') or {}).get('id')
+    current = set(track.genres.values_list('name', flat=True))
+
+    if album_id and current <= {'unknown'}:
+        from catalog.deezer_client import get_deezer_client
+
+        album = get_deezer_client().get_album(str(album_id))
+        names = [g.get('name', '').lower().strip()[:100]
+                 for g in ((album or {}).get('genres') or {}).get('data', [])]
+        names = [n for n in names if n]
+
+        if names:
+            track.genres.clear()
+            for name in names[:3]:
+                genre, _ = Genre.objects.get_or_create(name=name)
+                track.genres.add(genre)
+
+    return updated
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=120)
+def analyze_track_audio_task(self, track_id, force=False):
+    """Compute audio features for one track from its preview clip."""
+    from django.utils import timezone
+
+    from catalog.audio_analysis import (
+        ANALYSIS_VERSION,
+        AudioAnalysisError,
+        analyze_preview_url,
+        is_available,
+    )
+    from catalog.models import Track
+
+    if not is_available():
+        logger.info("Audio analysis backend unavailable; skipping")
+        return {'status': 'skipped', 'reason': 'backend unavailable'}
+
+    try:
+        track = Track.objects.get(id=track_id)
+    except Track.DoesNotExist:
+        logger.warning(f"Audio analysis: track {track_id} not found")
+        return {'status': 'error', 'message': 'track not found'}
+
+    if not force and track.is_audio_analyzed and track.analysis_version >= ANALYSIS_VERSION:
+        return {'status': 'skipped', 'reason': 'already analysed', 'track_id': track_id}
+
+    preview_url = track.preview_url
+
+    try:
+        if not preview_url:
+            preview_url = _refresh_preview_url(track)
+
+        if not preview_url:
+            logger.info(f"No preview available for {track_id}; leaving neutral defaults")
+            return {'status': 'skipped', 'reason': 'no preview', 'track_id': track_id}
+
+        try:
+            features = analyze_preview_url(preview_url)
+        except AudioAnalysisError:
+            # Most likely an expired signed URL - refetch once before giving up.
+            refreshed = _refresh_preview_url(track)
+            if not refreshed or refreshed == preview_url:
+                raise
+            logger.info(f"Preview URL for {track_id} was stale; retrying with a fresh one")
+            preview_url = refreshed
+            features = analyze_preview_url(preview_url)
+
+    except AudioAnalysisError as exc:
+        logger.warning(f"Audio analysis failed for {track_id}: {exc}")
+        return {'status': 'error', 'message': str(exc), 'track_id': track_id}
+    except Exception as exc:
+        logger.error(f"Unexpected audio analysis error for {track_id}: {exc}")
+        raise self.retry(exc=exc)
+
+    track.valence = features['valence']
+    track.energy = features['energy']
+    track.danceability = features['danceability']
+    track.acousticness = features['acousticness']
+    track.tempo = features['tempo']
+    track.loudness = features['loudness']
+    track.is_audio_analyzed = True
+    track.analysis_version = features['analysis_version']
+    track.analyzed_at = timezone.now()
+    track.preview_url = preview_url
+
+    fields = [
+        'valence', 'energy', 'danceability', 'acousticness', 'tempo', 'loudness',
+        'is_audio_analyzed', 'analysis_version', 'analyzed_at', 'preview_url',
+    ]
+
+    # Only worth an extra API call when something is actually missing, which is
+    # the first analysis of a track and not any later re-analysis.
+    needs_metadata = not track.release_year or set(track.genres.values_list('name', flat=True)) <= {'unknown'}
+
+    if track.id.startswith('dz-') and needs_metadata:
+        try:
+            from catalog.deezer_client import get_deezer_client
+
+            payload = get_deezer_client().get_track(track.id[3:])
+            if payload:
+                fields.extend(_apply_deezer_metadata(track, payload))
+        except Exception as exc:
+            logger.debug(f"Metadata backfill skipped for {track_id}: {exc}")
+
+    track.save(update_fields=list(dict.fromkeys(fields)))
+
+    logger.info(
+        f"Analysed {track_id}: energy={track.energy:.2f} dance={track.danceability:.2f} "
+        f"acoustic={track.acousticness:.2f} valence={track.valence:.2f} tempo={track.tempo:.0f}"
+    )
+
+    return {
+        'status': 'success',
+        'track_id': track_id,
+        'features': {k: features[k] for k in
+                     ('valence', 'energy', 'danceability', 'acousticness', 'tempo', 'loudness')},
+    }
+
+
+@shared_task
+def backfill_audio_analysis_task(limit=None):
+    """Queue analysis for tracks that still carry neutral defaults.
+
+    Safety net for anything the ingest-time queue missed: tracks ingested while
+    the worker was down, tracks whose preview fetch failed, and tracks analysed
+    by an older extractor version after a recalibration.
+    """
+    from django.conf import settings
+
+    from catalog.audio_analysis import ANALYSIS_VERSION, is_available
+    from catalog.models import Track
+
+    if not is_available():
+        return {'status': 'skipped', 'reason': 'backend unavailable'}
+
+    if limit is None:
+        limit = getattr(settings, 'AUDIO_ANALYSIS_BATCH_SIZE', 200)
+
+    # Only tracks we can actually analyse: one that already has a preview URL,
+    # or a Deezer track whose preview can be refetched. Legacy CSV rows have
+    # real features and no preview, so queueing them would be pure no-op churn.
+    from django.db.models import Q
+
+    pending = Track.objects.filter(
+        Q(analysis_version__lt=ANALYSIS_VERSION)
+        & (Q(preview_url__isnull=False) & ~Q(preview_url='') | Q(id__startswith='dz-'))
+    ).order_by('-popularity').values_list('id', flat=True)[:limit]
+
+    track_ids = list(pending)
+
+    for track_id in track_ids:
+        analyze_track_audio_task.delay(track_id)
+
+    logger.info(f"Queued {len(track_ids)} tracks for audio analysis backfill")
+    return {'status': 'success', 'queued': len(track_ids)}

@@ -219,6 +219,12 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=4, minute=0),
         'kwargs': {'popularity_threshold': 70, 'limit': 50},
     },
+    # Safety net for tracks whose ingest-time analysis never ran (worker down,
+    # preview fetch failed) or that predate an extractor recalibration.
+    'backfill-audio-analysis-hourly': {
+        'task': 'catalog.tasks.backfill_audio_analysis_task',
+        'schedule': crontab(minute=15),
+    },
 }
 
 # =============================================================================
@@ -255,10 +261,37 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 # =============================================================================
+# MUSIC SEARCH PROVIDER
+# =============================================================================
+# Which catalogue backs live search and on-demand ingest.
+#
+#   deezer  - public API, no credentials, ships a 30s preview clip per track
+#             (that clip is what AUDIO ANALYSIS below consumes)
+#   spotify - requires SPOTIFY_CLIENT_ID/SECRET, and since Spotify's Feb 2026
+#             migration also requires the app owner to hold an active Premium
+#             subscription; without one every catalogue call returns 403
+MUSIC_SEARCH_PROVIDER = config('MUSIC_SEARCH_PROVIDER', default='deezer')
+
+# =============================================================================
 # SPOTIFY API
 # =============================================================================
 SPOTIFY_CLIENT_ID = config('SPOTIFY_CLIENT_ID', default='')
 SPOTIFY_CLIENT_SECRET = config('SPOTIFY_CLIENT_SECRET', default='')
+
+# =============================================================================
+# AUDIO ANALYSIS
+# =============================================================================
+# Feature vectors are computed locally from preview clips rather than fetched
+# from a provider. Set AUDIO_ANALYSIS_ENABLED=False to skip analysis entirely
+# (tracks then keep neutral defaults and are flagged is_audio_analyzed=False).
+AUDIO_ANALYSIS_ENABLED = config('AUDIO_ANALYSIS_ENABLED', default=True, cast=bool)
+
+# Analyse newly ingested tracks in the background as they are discovered.
+# Requires a running Celery worker; without one, use `manage.py analyze_audio`.
+AUDIO_ANALYSIS_ON_INGEST = config('AUDIO_ANALYSIS_ON_INGEST', default=True, cast=bool)
+
+# Upper bound on tracks analysed per scheduled backfill sweep.
+AUDIO_ANALYSIS_BATCH_SIZE = config('AUDIO_ANALYSIS_BATCH_SIZE', default=200, cast=int)
 
 # =============================================================================
 # LAST.FM API (Optional)

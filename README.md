@@ -17,12 +17,13 @@ It is built as a production-shaped Django application: an ASGI stack (Daphne + C
 ## Highlights
 
 - **Content-based recommendation engine written from scratch** (NumPy, no ML black box): feature-vector extraction, centroid computation, adaptive centroid shifting from like/dislike feedback, explicit preference blending, serendipity injection to avoid filter bubbles, and Euclidean-distance ranking. See [`catalog/services.py`](catalog/services.py).
-- **Real-time search over WebSockets**: as you type, a Channels consumer streams phased progress updates ("searching local database…", "querying Spotify…", "ranking results…") and merges local catalogue hits with live Spotify results. See [`catalog/consumers.py`](catalog/consumers.py).
-- **Hybrid catalogue**: searches the local PostgreSQL library first, then falls back to the Spotify API and ingests new tracks on demand, so the searchable catalogue grows as it is used.
+- **Audio features computed from the audio itself**: valence, energy, danceability, acousticness and tempo are extracted from each track's 30-second preview clip with librosa — beat tracking, harmonic/percussive separation, spectral shape and chroma key detection. No third-party feature API is involved, which is what makes "recommends by the sound of the music" literally true. See [`catalog/audio_analysis.py`](catalog/audio_analysis.py) and the [method and calibration notes](docs/NOTES.audio-features.md).
+- **Real-time search over WebSockets**: as you type, a Channels consumer streams phased progress updates ("searching local database…", "querying Deezer…", "ranking results…") and merges local catalogue hits with live provider results. See [`catalog/consumers.py`](catalog/consumers.py).
+- **Hybrid catalogue with no credentials required**: searches the local PostgreSQL library first, then the Deezer public API, ingesting new tracks on demand so the searchable catalogue grows as it is used. Deezer needs no API key, no dashboard app and no subscription.
 - **External enrichment with graceful degradation**: artist metadata, similar artists, influence chains, and tags are pulled from MusicBrainz, Wikidata, Last.fm, and Genius. Every external call goes through a retry-with-exponential-backoff helper, and every client degrades to a no-op when its API key is absent or the service is down. The core recommender keeps working regardless.
 - **Interactive visual explorations of the audio-feature space**: a scatter-plot explorer, mood-journey builder, track comparison view, and genre-lineage map, all backed by dedicated API endpoints.
 - **Operational surface**: liveness/readiness health probes, a Prometheus-format `/metrics/` endpoint, request-ID logging middleware, per-scope API rate limiting, a content-security-policy middleware, and scheduled Celery Beat jobs for cache warming and data harvesting.
-- **~190 automated tests** across unit, integration, API, and web layers, plus performance benchmarks and a Locust load-test file.
+- **240 automated tests** across unit, integration, API, web, and audio-analysis layers, plus performance benchmarks and a Locust load-test file.
 
 ---
 
@@ -50,15 +51,16 @@ It is built as a production-shaped Django application: an ASGI stack (Daphne + C
                                                        │
              ┌─────────────────────────────────────────▼──────────────────────────┐
              │  External APIs (all optional, all degrade gracefully)               │
-             │  Spotify · MusicBrainz · Wikidata · Last.fm · Genius                 │
+             │  Deezer · MusicBrainz · Wikidata · Last.fm · Genius · Spotify        │
              └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Real-time search flow
 
 1. The browser opens a WebSocket to `ws/search/` and sends a query.
-2. `SearchConsumer` validates and sanitises the input, then streams status updates as it works through four phases: init → local DB search → Spotify search + ingest → merge & rank.
-3. Local and Spotify results are merged, de-duplicated by `(title, artist)`, ranked by a relevance heuristic (exact/prefix/substring matches, then popularity), and the top 20 are serialised back with `live` / `catalog` / `limited` source badges.
+2. `SearchConsumer` validates and sanitises the input, then streams status updates as it works through four phases: init → local DB search → provider search + ingest → merge & rank.
+3. Local and provider results are merged, de-duplicated by `(title, artist)`, ranked by a relevance heuristic (exact/prefix/substring matches, then popularity), and the top 20 are serialised back with `live` / `catalog` / `pending` / `limited` source badges.
+4. Newly ingested tracks carry placeholder features and a `pending` badge until a Celery task has analysed their preview clip, which usually lands within seconds. Search never waits on analysis.
 
 ### Recommendation pipeline
 
@@ -120,13 +122,33 @@ Open:
 - **Interactive API docs (Swagger)**: http://localhost:8000/api/docs/
 - **Health check**: http://localhost:8000/health/
 
-Spotify, Last.fm, and Genius credentials are **optional**: the app runs on the local catalogue without them. Add the keys to `.env` (see [Configuration](#configuration)) to unlock live Spotify search/ingest and richer artist enrichment.
+**No API credentials are needed to run this.** Search uses Deezer's public API and audio features are computed locally, so a fresh clone has working search and a working recommender out of the box. Last.fm and Genius keys are optional and only add artist enrichment; Spotify credentials are only needed for the "export playlist to Spotify" feature.
 
 To ingest the full audio-features dataset instead of the small seed set, use the `ingest_tracks` command with a CSV path:
 
 ```bash
 docker compose exec web python manage.py ingest_tracks /path/to/dataset.csv
 ```
+
+You do not need that dataset to have a working catalogue, though. Searching for
+anything ingests it from Deezer on the spot, and the audio analyser gives each
+new track a real feature vector within seconds.
+
+### Audio analysis
+
+Newly ingested tracks land with placeholder features and a `pending` badge,
+then a Celery task analyses their preview clip and fills in the real vector.
+With no worker running, do it by hand:
+
+```bash
+docker compose exec web python manage.py analyze_audio --limit 50
+docker compose exec web python manage.py analyze_audio --track-id dz-138547415
+docker compose exec web python manage.py analyze_audio --all --force   # full re-analysis
+```
+
+A Celery Beat job sweeps hourly for anything the ingest-time queue missed. How
+the extraction works, and how honest each of the five dimensions is, is written
+up in [docs/NOTES.audio-features.md](docs/NOTES.audio-features.md).
 
 ---
 
@@ -165,7 +187,10 @@ All configuration is via environment variables (loaded from `.env` with `python-
 | `DEBUG` | Debug mode (defaults to `False`) | No |
 | `POSTGRES_*` | Database name / user / password / host / port | Yes |
 | `REDIS_URL`, `REDIS_HOST` | Cache, Channels layer, Celery broker | Yes |
-| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | Live search, on-demand ingest, audio features ([get them here](https://developer.spotify.com/dashboard)) | Optional |
+| `MUSIC_SEARCH_PROVIDER` | `deezer` (default, no credentials) or `spotify` | No |
+| `AUDIO_ANALYSIS_ENABLED` | Compute feature vectors locally from preview clips (default `True`) | No |
+| `AUDIO_ANALYSIS_ON_INGEST` | Queue analysis as tracks are discovered (default `True`) | No |
+| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | Playlist export, and live search if `MUSIC_SEARCH_PROVIDER=spotify` ([get them here](https://developer.spotify.com/dashboard)) | Optional |
 | `LASTFM_API_KEY` | Tag-based recommendation boosts ([get one here](https://www.last.fm/api/account/create)) | Optional |
 | `GENIUS_ACCESS_TOKEN` | Lyrics-related features ([get one here](https://genius.com/api-clients)) | Optional |
 
@@ -226,6 +251,8 @@ catalog/
   ├── services.py    Recommendation engine (feature vectors, centroid, ranking)
   ├── consumers.py   WebSocket search consumer
   ├── external_data.py  MusicBrainz / Wikidata / Last.fm / Genius clients + retry helper
+  ├── deezer_client.py  Deezer public API client (default search provider)
+  ├── audio_analysis.py Feature extraction from preview clips (librosa)
   ├── spotify_client.py / spotify_oauth.py  Spotify search, ingest, playlist export
   ├── views.py / views_web.py  REST API + server-rendered pages
   ├── tasks.py       Celery tasks (harvest, cache warming, materialisation)
