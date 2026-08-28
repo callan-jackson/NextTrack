@@ -33,6 +33,18 @@ It is built as a production-shaped Django application: an ASGI stack (Daphne + C
 
 ---
 
+## What it looks like
+
+**Search** — every result carries its measured feature vector and a 30-second preview of the exact audio that produced it:
+
+![Search results with measured audio features](docs/screenshots/search.png)
+
+**Recommendations** — ranked by distance from your playlist's centroid, with per-track explanations, match scores, and artist enrichment from MusicBrainz/Wikidata/Last.fm:
+
+![Recommendations with explanations and artist enrichment](docs/screenshots/recommendations.png)
+
+---
+
 ## Architecture
 
 ```
