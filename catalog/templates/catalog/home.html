@@ -3,7 +3,7 @@
 
 {% block title %}Search Tracks{% endblock %}
 
-{% block meta_description %}Search over 30,000 tracks or find new music live from Spotify. Build your playlist and get AI-powered recommendations based on audio features.{% endblock %}
+{% block meta_description %}Search a growing catalogue or discover new music live. Build a playlist and get recommendations based on audio features measured from the music itself.{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -62,8 +62,30 @@
         background: rgba(245, 158, 11, 0.15);
         color: #f59e0b;
     }
+    .source-badge.pending {
+        background: rgba(168, 85, 247, 0.15);
+        color: #a855f7;
+    }
+    .source-badge.pending i {
+        animation: spin 2s linear infinite;
+    }
     .source-badge i {
         font-size: 0.65rem;
+    }
+
+    /* Brief flash when background analysis replaces the placeholder values, so
+       the numbers visibly arrive instead of changing silently. */
+    .track-card.features-updated {
+        animation: featuresLanded 1.6s ease;
+    }
+    @keyframes featuresLanded {
+        0%   { box-shadow: 0 0 0 0 rgba(29, 185, 84, 0.45); }
+        30%  { box-shadow: 0 0 0 4px rgba(29, 185, 84, 0.28); }
+        100% { box-shadow: 0 0 0 0 rgba(29, 185, 84, 0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .track-card.features-updated { animation: none; }
+        .source-badge.pending i { animation: none; }
     }
 
     /* Live Search Status Panel */
@@ -385,7 +407,7 @@
     {% if results %}
     <div class="track-grid" id="track-grid">
         {% for track in results %}
-        <div class="track-card">
+        <div class="track-card" data-track-id="{{ track.id }}" data-analyzed="{{ track.is_audio_analyzed|yesno:"1,0" }}">
             <div class="track-info">
                 <div class="track-header">
                     <div class="track-title-wrap">
@@ -396,8 +418,12 @@
                         <span class="source-badge catalog" title="From local database with full audio analysis">
                             <i class="fa-solid fa-database"></i> Catalog
                         </span>
+                        {% elif track.preview_url %}
+                        <span class="source-badge pending" title="Audio analysis in progress — values update automatically">
+                            <i class="fa-solid fa-clock"></i> Analyzing
+                        </span>
                         {% else %}
-                        <span class="source-badge limited" title="Limited audio analysis - using default values">
+                        <span class="source-badge limited" title="No preview clip available, so audio features could not be measured">
                             <i class="fa-solid fa-triangle-exclamation"></i> Limited
                         </span>
                         {% endif %}
@@ -481,7 +507,7 @@
     <div class="no-results">
         <p>No tracks found for "{{ query }}"</p>
         <p style="font-size: 0.9rem; margin-top: 0.75rem;">Try searching for popular artists like <strong>Beatles</strong>, <strong>Radiohead</strong>, or <strong>Daft Punk</strong>.</p>
-        <p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 0.5rem;">Our catalog has 30,000+ tracks. WebSocket search also checks Spotify for even more results.</p>
+        <p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 0.5rem;">Live search also checks Deezer, so anything in its catalogue can be found and added on demand.</p>
     </div>
     {% endif %}
 </div>
@@ -492,7 +518,7 @@
         <div class="step">
             <div class="step-number">1</div>
             <h3>Search</h3>
-            <p>Find tracks from our 30k+ catalog or live from Spotify via real-time WebSocket search.</p>
+            <p>Find tracks in the local catalogue or pull them in live from Deezer via real-time WebSocket search.</p>
         </div>
         <div class="step">
             <div class="step-number">2</div>
@@ -863,7 +889,7 @@
             <div class="results-section">
                 <h2>Search Results for "${escapeHtml(query)}"</h2>
                 <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
-                    Found ${count} tracks (${localCount} local, ${spotifyCount} from Spotify)
+                    Found ${count} tracks (${localCount} in catalogue, ${spotifyCount} newly added)
                 </p>
                 <div class="track-grid" id="track-grid">
         `;
@@ -874,7 +900,7 @@
             switch(track.source_badge) {
                 case 'live':
                     sourceBadgeHtml = `
-                        <span class="source-badge live" title="Freshly fetched from Spotify API">
+                        <span class="source-badge live" title="Just added from Deezer and analysed">
                             <i class="fa-solid fa-bolt"></i> Live
                         </span>`;
                     break;
@@ -907,7 +933,7 @@
             }
 
             html += `
-                <div class="track-card">
+                <div class="track-card" data-track-id="${escapeHtml(track.id)}" data-analyzed="${track.is_audio_analyzed ? 1 : 0}">
                     <div class="track-info">
                         <div class="track-header">
                             <div class="track-title-wrap">
@@ -1129,6 +1155,8 @@ document.addEventListener('click', function(e) {
             data.tracks.forEach(function(track) {
                 var card = document.createElement('div');
                 card.className = 'track-card';
+                card.dataset.trackId = track.id;
+                card.dataset.analyzed = track.is_audio_analyzed ? 1 : 0;
                 card.innerHTML =
                     '<div class="track-info">' +
                     '<div class="track-header"><div class="track-title-wrap"><h3 class="track-title">' + escapeHtml(track.title) + '</h3></div></div>' +
@@ -1167,6 +1195,100 @@ document.addEventListener('click', function(e) {
             if (window.showToast) showToast('Failed to load more results', 'error');
         });
     });
+})();
+
+/**
+ * Live audio-feature updater
+ * ---------------------------------------------------------------------------
+ * Newly ingested tracks are saved immediately but their feature vectors are
+ * computed in the background from the 30-second preview clip, one track at a
+ * time (~7-10s each). Search therefore renders before the real numbers exist,
+ * showing neutral 0.50 placeholders behind an "Analyzing" badge.
+ *
+ * Nothing previously told the page those numbers had arrived, so a fresh
+ * search appeared permanently stuck on "Analyzing". This polls for the pending
+ * cards and swaps the values in as each one completes.
+ */
+(function() {
+    const POLL_INTERVAL_MS = 4000;
+    const MAX_POLLS = 60;            // ~4 minutes, enough for a full page of results
+    let polls = 0;
+    let timer = null;
+
+    function pendingCards() {
+        return Array.from(document.querySelectorAll('.track-card[data-track-id][data-analyzed="0"]'));
+    }
+
+    function applyFeatures(card, data) {
+        const set = (selector, value) => {
+            const el = card.querySelector(selector + ' .value');
+            if (el) el.textContent = value;
+        };
+        set('.feature-item.energy', data.energy.toFixed(2));
+        set('.feature-item.valence', data.valence.toFixed(2));
+        set('.feature-item.dance', data.danceability.toFixed(2));
+        set('.feature-item.acoustic', data.acousticness.toFixed(2));
+        set('.feature-item.tempo', Math.round(data.tempo));
+
+        card.dataset.analyzed = '1';
+
+        const badge = card.querySelector('.source-badge.pending');
+        if (badge) {
+            badge.className = 'source-badge catalog';
+            badge.title = 'Audio features measured from the preview clip';
+            badge.innerHTML = '<i class="fa-solid fa-database"></i> Catalog';
+        }
+
+        // Brief highlight so the change is visible rather than silent.
+        card.classList.add('features-updated');
+        setTimeout(() => card.classList.remove('features-updated'), 1600);
+    }
+
+    function poll() {
+        const cards = pendingCards();
+        if (cards.length === 0 || polls >= MAX_POLLS) {
+            clearInterval(timer);
+            return;
+        }
+        polls++;
+
+        const ids = cards.map(c => c.dataset.trackId).filter(Boolean).slice(0, 50);
+        if (ids.length === 0) { clearInterval(timer); return; }
+
+        fetch('/ajax/track-features/?ids=' + encodeURIComponent(ids.join(',')))
+            .then(r => r.ok ? r.json() : Promise.reject(r.status))
+            .then(payload => {
+                (payload.tracks || []).forEach(t => {
+                    if (!t.is_audio_analyzed) return;
+                    const card = document.querySelector(
+                        '.track-card[data-track-id="' + (window.CSS && CSS.escape ? CSS.escape(t.id) : t.id) + '"]'
+                    );
+                    if (card && card.dataset.analyzed === '0') applyFeatures(card, t);
+                });
+            })
+            .catch(() => { /* transient - the next tick retries */ });
+    }
+
+    function start() {
+        if (timer) clearInterval(timer);
+        if (pendingCards().length === 0) return;
+        polls = 0;
+        timer = setInterval(poll, POLL_INTERVAL_MS);
+        setTimeout(poll, 1200);
+    }
+
+    // Re-arm whenever new cards are rendered (WebSocket results, "show more").
+    const grid = document.getElementById('results-container');
+    if (grid && window.MutationObserver) {
+        new MutationObserver(() => start()).observe(grid, { childList: true, subtree: true });
+    }
+
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) { clearInterval(timer); } else { start(); }
+    });
+
+    window.NextTrackFeaturePoller = { start: start };
+    start();
 })();
 </script>
 {% endblock extra_scripts %}

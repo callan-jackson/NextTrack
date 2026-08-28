@@ -61,12 +61,22 @@
     box-sizing: border-box;
 }
 
+/* The off-canvas mobile drawer sits outside the right edge of the viewport.
+   Without this guard the page stays horizontally pannable on phones, so a
+   pinch-zoom reveals the drawer's dead space beside the content and the whole
+   layout reads as squashed into a narrow left-hand column. */
+html {
+    overflow-x: hidden;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
     background-color: var(--bg-color);
     color: var(--text-color);
     line-height: 1.6;
     min-height: 100vh;
+    overflow-x: hidden;
+    width: 100%;
 }
 
 /* ==================== Navigation ==================== */
@@ -1072,18 +1082,24 @@ body {
         display: flex;
     }
 
+    /* Parked off-screen with a transform rather than a negative offset:
+       transforms are painted, not laid out, so the drawer cannot widen the
+       document and make the page pannable sideways. */
     .nav-links {
         position: fixed;
         top: 0;
-        right: -300px;
+        right: 0;
         max-width: 300px;
         width: 85vw;
         height: 100vh;
+        height: 100dvh;
         background-color: var(--secondary-color);
         flex-direction: column;
         padding: 5rem 1.5rem 2rem;
         gap: 0.5rem;
-        transition: right 0.3s ease;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        will-change: transform;
         z-index: 100;
         border-left: 1px solid var(--border-color);
         overflow-y: auto;
@@ -1091,7 +1107,7 @@ body {
     }
 
     .nav-links.active {
-        right: 0;
+        transform: translateX(0);
     }
 
     .nav-links a {
@@ -1159,6 +1175,78 @@ body {
         width: 100%;
         padding: 1rem;
         z-index: 10000;
+    }
+
+    /* Phone-sized typography. The desktop scale leaves a result heading like
+       'Search Results for "Lana Del Rey"' occupying three lines before any
+       result is visible. */
+    .container {
+        padding: 1rem 0.875rem 2rem;
+    }
+
+    .results-section h2,
+    .page-header h1 {
+        font-size: 1.35rem;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+    }
+
+    .welcome-section h2 {
+        font-size: 1.25rem;
+    }
+
+    .search-section {
+        margin: 1.25rem 0;
+    }
+
+    /* 16px keeps iOS Safari from zooming the page when the field takes focus. */
+    .search-input {
+        font-size: 16px;
+        padding: 0.9rem 1.1rem;
+    }
+
+    .search-form .btn,
+    .search-form button {
+        width: 100%;
+        min-height: 48px;
+    }
+
+    .track-card {
+        padding: 1rem;
+        gap: 0.75rem;
+    }
+
+    .track-title {
+        font-size: 1rem;
+        line-height: 1.3;
+        overflow-wrap: anywhere;
+    }
+
+    .track-artist {
+        font-size: 0.9rem;
+    }
+
+    /* Long titles must not push the badge off the card. */
+    .track-header {
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+
+    /* Comfortable thumb targets; 44px is the iOS minimum. */
+    .track-actions .btn,
+    .btn-add,
+    .btn-show-more {
+        min-height: 44px;
+    }
+
+    .track-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .track-actions .inline-form,
+    .track-actions .btn {
+        flex: 1;
     }
 }
 

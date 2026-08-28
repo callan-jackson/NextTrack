@@ -30,6 +30,7 @@ from catalog.views_web import (
     create_snapshot,
     spotify_export_ajax,
     submit_feedback,
+    track_features_ajax,
 )
 
 
@@ -104,6 +105,8 @@ urlpatterns = [
     path('feedback/history/', FeedbackListView.as_view(), name='feedback_history'),
     path('analytics/', AnalyticsDashboardView.as_view(), name='analytics_dashboard'),
     path('ajax/add-track/', add_to_playlist_ajax, name='add_track_ajax'),
+    # Polled by search pages while background audio analysis is still running.
+    path('ajax/track-features/', track_features_ajax, name='track_features_ajax'),
 
     # Shared playlists
     path('shared/<uuid:token>/', SharedPlaylistView.as_view(), name='shared_playlist'),

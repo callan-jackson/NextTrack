@@ -449,3 +449,65 @@ class SubmitFeedbackWebTestCase(TestCase):
             content_type='application/json',
         )
         self.assertEqual(response.status_code, 400)
+
+
+class TrackFeaturesAjaxTestCase(TestCase):
+    """The polling endpoint that lets search pages pick up background analysis."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.artist = Artist.objects.create(id='feat-artist', name='Feature Artist')
+        cls.pending = Track.objects.create(
+            id='dz-pending', title='Still Analysing', artist=cls.artist,
+            is_audio_analyzed=False, analysis_version=0,
+            preview_url='https://example.invalid/p.mp3',
+        )
+        cls.done = Track.objects.create(
+            id='dz-done', title='Analysed', artist=cls.artist,
+            is_audio_analyzed=True, analysis_version=1,
+            energy=0.73, valence=0.41, danceability=0.62,
+            acousticness=0.18, tempo=128.4,
+        )
+
+    def test_returns_features_for_requested_ids(self):
+        response = self.client.get('/ajax/track-features/', {'ids': 'dz-done'})
+        self.assertEqual(response.status_code, 200)
+
+        tracks = response.json()['tracks']
+        self.assertEqual(len(tracks), 1)
+        self.assertEqual(tracks[0]['id'], 'dz-done')
+        self.assertTrue(tracks[0]['is_audio_analyzed'])
+        self.assertAlmostEqual(tracks[0]['energy'], 0.73)
+        self.assertEqual(tracks[0]['tempo'], 128)
+
+    def test_pending_track_reported_as_unanalysed(self):
+        """The poller must keep polling until this flips, so it has to be honest."""
+        response = self.client.get('/ajax/track-features/', {'ids': 'dz-pending'})
+        payload = response.json()['tracks'][0]
+
+        self.assertFalse(payload['is_audio_analyzed'])
+
+    def test_accepts_multiple_ids(self):
+        response = self.client.get('/ajax/track-features/', {'ids': 'dz-done,dz-pending'})
+        self.assertEqual(len(response.json()['tracks']), 2)
+
+    def test_unknown_ids_are_skipped_not_errors(self):
+        response = self.client.get('/ajax/track-features/', {'ids': 'dz-done,nope'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['tracks']), 1)
+
+    def test_empty_request_returns_empty_list(self):
+        response = self.client.get('/ajax/track-features/', {'ids': ''})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['tracks'], [])
+
+    def test_batch_is_capped(self):
+        """A crafted query must not turn into an unbounded IN clause."""
+        ids = ','.join(f'id-{i}' for i in range(200))
+        response = self.client.get('/ajax/track-features/', {'ids': ids})
+        self.assertEqual(response.status_code, 200)
+
+    def test_no_query_parameter(self):
+        response = self.client.get('/ajax/track-features/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['tracks'], [])

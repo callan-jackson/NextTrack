@@ -1161,3 +1161,42 @@ class ScatterPlotView(View):
     def get(self, request):
         genres = list(Genre.objects.values_list('name', flat=True).order_by('name')[:50])
         return render(request, 'catalog/scatter.html', {'genres': genres})
+
+
+def track_features_ajax(request: HttpRequest) -> JsonResponse:
+    """Return current audio features for a set of track IDs.
+
+    Audio analysis runs in the background after a track is ingested, so search
+    results are rendered before their real feature vectors exist. Without this
+    endpoint those cards keep showing the neutral 0.50 placeholders and an
+    "Analyzing" badge until the visitor happens to search again, which reads as
+    though analysis never finishes.
+
+    The page polls this while any card is still pending and swaps the values in
+    once they land.
+    """
+    raw_ids = request.GET.get('ids', '')
+    track_ids = [tid.strip() for tid in raw_ids.split(',') if tid.strip()][:50]
+
+    if not track_ids:
+        return JsonResponse({'tracks': []})
+
+    tracks = Track.objects.filter(id__in=track_ids).only(
+        'id', 'valence', 'energy', 'danceability', 'acousticness',
+        'tempo', 'loudness', 'is_audio_analyzed',
+    )
+
+    return JsonResponse({
+        'tracks': [
+            {
+                'id': track.id,
+                'energy': round(track.energy, 2),
+                'valence': round(track.valence, 2),
+                'danceability': round(track.danceability, 2),
+                'acousticness': round(track.acousticness, 2),
+                'tempo': round(track.tempo),
+                'is_audio_analyzed': track.is_audio_analyzed,
+            }
+            for track in tracks
+        ]
+    })
