@@ -352,6 +352,15 @@ body {
     gap: 1.25rem;
 }
 
+/* 1fr in a grid means minmax(auto, 1fr): the track can never shrink below the
+   item's intrinsic min-content. A card holding a long nowrap track title has a
+   min-content wider than a phone screen, so the single mobile column computed
+   to ~450px inside a 390px viewport and the card's right edge - badge included -
+   was clipped. Zeroing the item minimum lets the column actually be 1fr. */
+.track-grid > * {
+    min-width: 0;
+}
+
 .track-card {
     background-color: var(--bg-card);
     border-radius: 12px;
@@ -1142,7 +1151,7 @@ body {
     }
 
     .track-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .container {

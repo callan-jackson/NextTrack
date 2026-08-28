@@ -252,10 +252,26 @@ class RecommendationsView(View):
             input_artist_names = list(set(track.artist.name for track in input_tracks))
 
             external_service = get_live_external_service()
+
+            # Cached-only on the request path. A cold artist costs several
+            # seconds of rate-limited MusicBrainz/Wikidata calls each, and five
+            # of them held this page at ~80s - long past the point a phone
+            # user assumes it hung. The misses are warmed by a Celery task
+            # instead, so the enrichment appears from the next page load.
+            all_names = rec_artist_names + input_artist_names
             external_data = external_service.batch_get_artist_info(
-                rec_artist_names + input_artist_names,
-                max_live_fetches=5
+                all_names,
+                max_live_fetches=0
             )
+
+            missing = [n for n in all_names if not external_data.get(n)]
+            if missing:
+                try:
+                    from catalog.tasks import warm_artist_enrichment_task
+
+                    warm_artist_enrichment_task.delay(missing[:20])
+                except Exception as exc:
+                    logger.debug(f"Could not queue enrichment warm-up: {exc}")
         except (AttributeError, TypeError, ValueError) as e:
             logger.warning(f"External data fetch failed: {e}")
             external_data = {}
@@ -1217,9 +1233,18 @@ def track_preview_ajax(request: HttpRequest) -> JsonResponse:
     if not track_id:
         return JsonResponse({'error': 'missing id'}, status=400)
 
+    # ?redirect=1 makes this endpoint 302 straight to the clip, so a page can
+    # set it as an <audio> src synchronously inside the click gesture. iOS
+    # Safari only allows play() during a user gesture; fetching the URL first
+    # and calling play() in the promise callback runs outside the gesture and
+    # is blocked with NotAllowedError.
+    redirect_mode = request.GET.get('redirect') == '1'
+
     cache_key = f'preview_url:{track_id}'
     cached = cache.get(cache_key)
     if cached:
+        if redirect_mode:
+            return redirect(cached)
         return JsonResponse({'url': cached, 'cached': True})
 
     try:
@@ -1242,4 +1267,6 @@ def track_preview_ajax(request: HttpRequest) -> JsonResponse:
         Track.objects.filter(pk=track.pk).update(preview_url=url)
 
     cache.set(cache_key, url, timeout=20 * 3600)
+    if redirect_mode:
+        return redirect(url)
     return JsonResponse({'url': url, 'cached': False})

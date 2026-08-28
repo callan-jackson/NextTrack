@@ -26,7 +26,6 @@
 
     var audio = null;
     var currentButton = null;
-    var urlCache = {};
 
     function getAudio() {
         if (audio) return audio;
@@ -88,21 +87,6 @@
         reset();
     }
 
-    function fetchPreviewUrl(trackId) {
-        if (urlCache[trackId]) return Promise.resolve(urlCache[trackId]);
-
-        return fetch('/ajax/track-preview/?id=' + encodeURIComponent(trackId))
-            .then(function (r) {
-                if (!r.ok) throw new Error('no preview');
-                return r.json();
-            })
-            .then(function (data) {
-                if (!data.url) throw new Error('no preview');
-                urlCache[trackId] = data.url;
-                return data.url;
-            });
-    }
-
     function play(button) {
         var trackId = button.dataset.trackId;
         if (!trackId) return;
@@ -117,18 +101,22 @@
         currentButton = button;
         setState(button, 'loading');
 
-        fetchPreviewUrl(trackId)
-            .then(function (url) {
-                var a = getAudio();
-                a.src = url;
-                return a.play();
-            })
+        // src is our own endpoint, which 302s to the freshly-signed clip URL.
+        // Setting src and calling play() synchronously here keeps everything
+        // inside the click gesture - iOS Safari refuses a play() issued from a
+        // later promise callback (NotAllowedError), which is exactly what a
+        // fetch-the-URL-first design does.
+        var a = getAudio();
+        a.src = '/ajax/track-preview/?id=' + encodeURIComponent(trackId) + '&redirect=1';
+
+        a.play()
             .then(function () {
                 if (currentButton !== button) return;   // superseded mid-load
                 setState(button, 'playing');
                 button.classList.add('is-playing');
             })
             .catch(function () {
+                if (currentButton !== button) return;
                 setState(button, 'error');
                 currentButton = null;
             });

@@ -189,6 +189,13 @@ SPECTACULAR_SETTINGS = {
 CELERY_BROKER_URL = config('REDIS_URL', default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = config('REDIS_URL', default='redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
+
+# Consume queued tasks in priority order rather than FIFO. With the Redis
+# transport, priority 0 is the HIGHEST. This exists so audio analysis for a
+# track someone just searched jumps ahead of bulk backfill: a warm-up sweep
+# once queued ~750 analyses, and every new search's tracks sat behind the
+# whole backlog showing "Analyzing" for hours.
+CELERY_BROKER_TRANSPORT_OPTIONS = {'queue_order_strategy': 'priority'}
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
@@ -334,9 +341,13 @@ CSP_DEFAULT_SRC = ("'self'",)
 CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com")
 CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com")
 CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com")
-CSP_IMG_SRC = ("'self'", "data:", "https://i.scdn.co", "https://*.spotify.com")
+CSP_IMG_SRC = ("'self'", "data:", "https://i.scdn.co", "https://*.spotify.com", "https://*.dzcdn.net", "https://api.deezer.com")
 CSP_CONNECT_SRC = ("'self'", "wss:", "ws:")
 CSP_FRAME_SRC = ("'self'", "https://open.spotify.com")
+# Preview clips stream from Deezer's CDN. Without an explicit media-src the
+# browser falls back to default-src 'self' and refuses to play them - the
+# player showed its error state with a CSP violation in the console.
+CSP_MEDIA_SRC = ("'self'", "https://*.dzcdn.net")
 
 # =============================================================================
 # LOGGING

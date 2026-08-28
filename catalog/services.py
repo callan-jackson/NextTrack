@@ -1073,7 +1073,9 @@ def _queue_audio_analysis(tracks):
         try:
             from catalog.tasks import analyze_track_audio_task
 
-            analyze_track_audio_task.delay(track.id)
+            # Priority 0 (highest on Redis): the user is looking at this
+            # track's card right now.
+            analyze_track_audio_task.apply_async(args=[track.id], priority=0)
             queued += 1
         except Exception as exc:
             logger.warning(f"Could not queue audio analysis for {track.id}: {exc}")

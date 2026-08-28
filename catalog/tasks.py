@@ -850,7 +850,35 @@ def backfill_audio_analysis_task(limit=None):
     track_ids = list(pending)
 
     for track_id in track_ids:
-        analyze_track_audio_task.delay(track_id)
+        # Priority 9 (lowest on Redis): nobody is waiting on a backfill, so it
+        # must never delay analysis for a track someone just searched.
+        analyze_track_audio_task.apply_async(args=[track_id], priority=9)
 
     logger.info(f"Queued {len(track_ids)} tracks for audio analysis backfill")
     return {'status': 'success', 'queued': len(track_ids)}
+
+
+@shared_task(bind=True, max_retries=1)
+def warm_artist_enrichment_task(self, artist_names):
+    """Fetch external enrichment for artists the results page found uncached.
+
+    The results page serves enrichment cached-only: a cold artist costs
+    several seconds of rate-limited MusicBrainz/Wikidata calls, and doing that
+    inline held the page at ~80 seconds for a playlist of new artists. This
+    task does the slow part in the background so the data is there for the
+    next render.
+    """
+    from catalog.external_data import get_live_external_service
+
+    if not artist_names:
+        return {'status': 'skipped', 'reason': 'no artists'}
+
+    try:
+        service = get_live_external_service()
+        service.batch_get_artist_info(list(artist_names)[:20], max_live_fetches=20)
+    except Exception as exc:
+        logger.warning(f"Enrichment warm-up failed: {exc}")
+        raise self.retry(exc=exc, countdown=120)
+
+    logger.info(f"Warmed enrichment cache for {len(artist_names)} artist(s)")
+    return {'status': 'success', 'artists': len(artist_names)}

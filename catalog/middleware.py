@@ -58,6 +58,7 @@ class ContentSecurityPolicyMiddleware:
             'style-src': getattr(settings, 'CSP_STYLE_SRC', ("'self'",)),
             'font-src': getattr(settings, 'CSP_FONT_SRC', ("'self'",)),
             'img-src': getattr(settings, 'CSP_IMG_SRC', ("'self'",)),
+            'media-src': getattr(settings, 'CSP_MEDIA_SRC', ("'self'",)),
             'connect-src': getattr(settings, 'CSP_CONNECT_SRC', ("'self'",)),
             'frame-src': getattr(settings, 'CSP_FRAME_SRC', ("'self'",)),
         }

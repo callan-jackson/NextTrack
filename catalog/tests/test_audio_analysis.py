@@ -329,7 +329,7 @@ class BackfillTaskTestCase(TestCase):
         from catalog.tasks import backfill_audio_analysis_task
 
         with patch('catalog.audio_analysis.is_available', return_value=True), \
-             patch('catalog.tasks.analyze_track_audio_task.delay') as delay:
+             patch('catalog.tasks.analyze_track_audio_task.apply_async') as delay:
             result = backfill_audio_analysis_task()
 
         self.assertEqual(result['queued'], 0)
@@ -342,11 +342,11 @@ class BackfillTaskTestCase(TestCase):
         from catalog.tasks import backfill_audio_analysis_task
 
         with patch('catalog.audio_analysis.is_available', return_value=True), \
-             patch('catalog.tasks.analyze_track_audio_task.delay') as delay:
+             patch('catalog.tasks.analyze_track_audio_task.apply_async') as delay:
             result = backfill_audio_analysis_task()
 
         self.assertEqual(result['queued'], 1)
-        delay.assert_called_once_with('dz-2')
+        delay.assert_called_once_with(args=['dz-2'], priority=9)
 
     def test_tracks_with_preview_urls_are_queued(self):
         Track.objects.create(id='other-1', title='X', artist=self.artist,
@@ -356,11 +356,11 @@ class BackfillTaskTestCase(TestCase):
         from catalog.tasks import backfill_audio_analysis_task
 
         with patch('catalog.audio_analysis.is_available', return_value=True), \
-             patch('catalog.tasks.analyze_track_audio_task.delay') as delay:
+             patch('catalog.tasks.analyze_track_audio_task.apply_async') as delay:
             result = backfill_audio_analysis_task()
 
         self.assertEqual(result['queued'], 1)
-        delay.assert_called_once_with('other-1')
+        delay.assert_called_once_with(args=['other-1'], priority=9)
 
     def test_respects_limit(self):
         for index in range(5):
@@ -370,7 +370,7 @@ class BackfillTaskTestCase(TestCase):
         from catalog.tasks import backfill_audio_analysis_task
 
         with patch('catalog.audio_analysis.is_available', return_value=True), \
-             patch('catalog.tasks.analyze_track_audio_task.delay'):
+             patch('catalog.tasks.analyze_track_audio_task.apply_async'):
             result = backfill_audio_analysis_task(limit=2)
 
         self.assertEqual(result['queued'], 2)
