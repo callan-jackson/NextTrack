@@ -1303,3 +1303,53 @@ class SearchRankingTestCase(TestCase):
         expected_order = ['rank_t1', 'rank_t2', 'rank_t3', 'rank_t4', 'rank_t5']
         actual_positions = [result_ids.index(tid) for tid in expected_order]
         self.assertEqual(actual_positions, sorted(actual_positions))
+
+
+class CandidatePoolExcludesUnanalysedTestCase(TestCase):
+    """Placeholder feature vectors must not be recommendable.
+
+    An unanalysed track sits at the neutral 0.5 midpoint of every dimension,
+    which is a short Euclidean distance from almost any centroid. Left in the
+    pool it gets recommended for being average rather than for sounding like
+    anything.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.artist = Artist.objects.create(id='pool-artist', name='Pool Artist')
+        cls.genre = Genre.objects.create(name='pool-rock')
+
+        cls.analysed = Track.objects.create(
+            id='pool-analysed', title='Analysed', artist=cls.artist,
+            valence=0.8, energy=0.8, danceability=0.8, acousticness=0.1,
+            tempo=128.0, popularity=80, is_audio_analyzed=True,
+        )
+        cls.analysed.genres.add(cls.genre)
+
+        cls.pending = Track.objects.create(
+            id='pool-pending', title='Not Yet Analysed', artist=cls.artist,
+            valence=0.5, energy=0.5, danceability=0.5, acousticness=0.5,
+            tempo=120.0, popularity=95, is_audio_analyzed=False,
+        )
+        cls.pending.genres.add(cls.genre)
+
+    def test_unanalysed_track_is_not_a_candidate(self):
+        candidates = get_candidates_with_serendipity({self.genre.id}, set())
+        ids = set(candidates.values_list('id', flat=True))
+
+        self.assertIn('pool-analysed', ids)
+        self.assertNotIn('pool-pending', ids)
+
+    def test_excluded_even_with_no_genre_filter(self):
+        """The no-genre branch sorts by popularity, where the pending track wins."""
+        candidates = get_candidates_with_serendipity(set(), set())
+        ids = set(candidates.values_list('id', flat=True))
+
+        self.assertNotIn('pool-pending', ids)
+
+    def test_excluded_from_the_discovery_pool(self):
+        """The serendipity pool takes popularity >= 70, which this track passes."""
+        other_genre = Genre.objects.create(name='pool-other')
+        candidates = get_candidates_with_serendipity({other_genre.id}, set())
+
+        self.assertNotIn('pool-pending', set(candidates.values_list('id', flat=True)))

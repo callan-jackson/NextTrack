@@ -459,26 +459,34 @@ def apply_preferences(centroid: np.ndarray, preferences: Optional[dict[str, floa
 
 
 def get_candidates_with_serendipity(input_genre_ids: set[int], input_track_ids: set[str], serendipity_ratio: float = 0.2) -> QuerySet:
-    """Mix 80% genre-matched tracks with 20% popular outliers to avoid filter bubbles."""
+    """Mix 80% genre-matched tracks with 20% popular outliers to avoid filter bubbles.
+
+    Only analysed tracks are eligible. A track ingested moments ago still holds
+    the neutral 0.5 placeholders, which sit near the middle of the feature
+    space and therefore land a short distance from almost any centroid - it
+    would be recommended for looking average rather than for sounding similar.
+    """
     total_target = 2000
     discovery_count = int(total_target * serendipity_ratio)
     genre_count = total_target - discovery_count
 
+    analysed = Track.objects.filter(is_audio_analyzed=True)
+
     if input_genre_ids:
-        genre_candidates = Track.objects.filter(
+        genre_candidates = analysed.filter(
             genres__id__in=list(input_genre_ids)
         ).exclude(
             id__in=input_track_ids
         ).distinct()
     else:
-        genre_candidates = Track.objects.exclude(
+        genre_candidates = analysed.exclude(
             id__in=input_track_ids
         ).order_by('-popularity')
 
     genre_candidate_ids = list(genre_candidates.values_list('id', flat=True)[:genre_count])
 
     if input_genre_ids:
-        discovery_candidates = Track.objects.filter(
+        discovery_candidates = analysed.filter(
             popularity__gte=70
         ).exclude(
             id__in=input_track_ids

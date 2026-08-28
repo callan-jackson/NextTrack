@@ -1,0 +1,102 @@
+name: Deploy
+
+# Deploys main to the production host after CI passes.
+#
+# Until this existed, deploying meant SSHing in and running the steps by hand,
+# so "pushed" and "live" could silently drift apart - the running site sat five
+# commits behind for a week without anything surfacing it.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   DEPLOY_HOST  - server hostname or IP
+#   DEPLOY_USER  - SSH user
+#   DEPLOY_KEY   - private half of an SSH keypair whose public half is in the
+#                  server user's ~/.ssh/authorized_keys
+#   DEPLOY_PATH  - checkout directory on the server (e.g. /srv/nexttrack)
+#
+# Without those secrets the job is skipped rather than failing the run.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Only deploy a green build. workflow_dispatch has no upstream run to check.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - name: Check deployment secrets are configured
+        id: guard
+        run: |
+          if [ -z "${{ secrets.DEPLOY_HOST }}" ] || [ -z "${{ secrets.DEPLOY_KEY }}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Deployment secrets not set; skipping deploy."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up SSH
+        if: steps.guard.outputs.configured == 'true'
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy
+        if: steps.guard.outputs.configured == 'true'
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$USER@$HOST" bash -eux <<EOF
+            cd "${DEPLOY_PATH:-/srv/nexttrack}"
+
+            # Fast-forward only: never discard work done on the server.
+            git fetch origin
+            git merge --ff-only origin/main
+
+            # The image bakes the source in (COPY . /code), so code changes
+            # need a rebuild - restarting alone silently keeps the old build.
+            docker compose -f docker-compose.prod.yml build web celery celery-beat
+
+            # The web container runs migrate on startup.
+            docker compose -f docker-compose.prod.yml up -d web celery celery-beat
+          EOF
+
+      - name: Wait for health check
+        if: steps.guard.outputs.configured == 'true'
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          for i in $(seq 1 30); do
+            if ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$USER@$HOST" \
+                 'curl -sf -m 5 -o /dev/null http://localhost:8000/health/live/'; then
+              echo "Healthy after ${i} attempt(s)."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Service did not become healthy within 150s."
+          exit 1
+
+      - name: Report container state on failure
+        if: failure() && steps.guard.outputs.configured == 'true'
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          ssh -i ~/.ssh/id_deploy -o BatchMode=yes "$USER@$HOST" \
+            'cd /srv/nexttrack && docker compose -f docker-compose.prod.yml ps && \
+             docker compose -f docker-compose.prod.yml logs --tail=50 web' || true
