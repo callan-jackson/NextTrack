@@ -299,87 +299,18 @@ function trapFocus(modalElement) {
  * Lazy-load Spotify Embeds via IntersectionObserver
  * Swaps data-src to src on iframes when they enter the viewport.
  */
-function initLazyEmbeds() {
-    var lazyIframes = document.querySelectorAll('iframe[data-src]');
-    if (lazyIframes.length === 0) return;
+// initLazyEmbeds removed alongside initEmbedFailureHandling: there are no
+// lazy-loaded iframes left now that playback is native.
 
-    if ('IntersectionObserver' in window) {
-        var observer = new IntersectionObserver(function(entries) {
-            entries.forEach(function(entry) {
-                if (entry.isIntersecting) {
-                    var iframe = entry.target;
-                    iframe.src = iframe.dataset.src;
-                    iframe.removeAttribute('data-src');
-                    observer.unobserve(iframe);
-                }
-            });
-        }, { rootMargin: '200px' });
-
-        lazyIframes.forEach(function(iframe) {
-            observer.observe(iframe);
-        });
-    } else {
-        // Fallback: load all immediately
-        lazyIframes.forEach(function(iframe) {
-            iframe.src = iframe.dataset.src;
-            iframe.removeAttribute('data-src');
-        });
-    }
-}
 
 /**
  * Spotify Embed Failure Handling
  * After 5 seconds, if an iframe hasn't loaded, replace with a fallback card.
  * For lazy-loaded iframes (data-src), the timeout starts when src is set.
  */
-function initEmbedFailureHandling() {
-    var embeds = document.querySelectorAll('.spotify-embed iframe, .spotify-embed-small iframe');
-    embeds.forEach(function(iframe) {
-        function startLoadTimeout() {
-            var loaded = false;
-            iframe.addEventListener('load', function() {
-                loaded = true;
-            });
-            setTimeout(function() {
-                if (!loaded && iframe.parentElement) {
-                    var trackId = '';
-                    var srcAttr = iframe.src || iframe.dataset.src || '';
-                    var match = srcAttr.match(/track\/([a-zA-Z0-9]+)/);
-                    if (match) trackId = match[1];
-                    var title = iframe.getAttribute('title') || 'Track';
-                    var fallback = document.createElement('div');
-                    fallback.className = 'spotify-embed-fallback';
-                    fallback.innerHTML =
-                        '<div style="display:flex;align-items:center;gap:0.75rem;padding:1rem;background:var(--bg-card);border-radius:12px;border:1px solid var(--border-color);">' +
-                        '<i class="fa-brands fa-spotify" style="font-size:1.5rem;color:#1DB954;"></i>' +
-                        '<div style="flex:1;">' +
-                        '<div style="font-size:0.9rem;font-weight:600;color:var(--text-color);">' + title.replace('Spotify player for ', '') + '</div>' +
-                        '<div style="font-size:0.8rem;color:var(--text-muted);">Embed could not load</div>' +
-                        '</div>' +
-                        (trackId ? '<a href="https://open.spotify.com/track/' + trackId + '" target="_blank" rel="noopener" class="btn btn-small btn-primary" style="flex-shrink:0;">Open in Spotify</a>' : '') +
-                        '</div>';
-                    iframe.parentElement.replaceChild(fallback, iframe);
-                }
-            }, 5000);
-        }
+// initEmbedFailureHandling removed: the Spotify embed iframes it patched up
+// were replaced by the native preview player (static/js/preview-player.js).
 
-        if (iframe.hasAttribute('data-src') && !iframe.src) {
-            // For lazy-loaded iframes, watch for src attribute being set
-            var srcObserver = new MutationObserver(function(mutations) {
-                for (var i = 0; i < mutations.length; i++) {
-                    if (mutations[i].attributeName === 'src' && iframe.src) {
-                        srcObserver.disconnect();
-                        startLoadTimeout();
-                        break;
-                    }
-                }
-            });
-            srcObserver.observe(iframe, { attributes: true, attributeFilter: ['src'] });
-        } else {
-            startLoadTimeout();
-        }
-    });
-}
 
 // Expose functions globally (legacy flat names kept for backwards compat)
 window.getCsrfToken = getCsrfToken;
@@ -391,8 +322,6 @@ window.addToPlaylist = addToPlaylist;
 window.initDuplicateModal = initDuplicateModal;
 window.initAjaxFormInterceptor = initAjaxFormInterceptor;
 window.trapFocus = trapFocus;
-window.initLazyEmbeds = initLazyEmbeds;
-window.initEmbedFailureHandling = initEmbedFailureHandling;
 
 /**
  * Global Namespace: window.NextTrack
@@ -412,18 +341,4 @@ window.NextTrack.modal = {
     trapFocus: trapFocus
 };
 window.NextTrack.forms = { initAjaxInterceptor: initAjaxFormInterceptor };
-window.NextTrack.embeds = {
-    initLazy: initLazyEmbeds,
-    initFailureHandling: initEmbedFailureHandling
-};
 
-// Initialize lazy embeds and failure handling on DOMContentLoaded
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function() {
-        initLazyEmbeds();
-        initEmbedFailureHandling();
-    });
-} else {
-    initLazyEmbeds();
-    initEmbedFailureHandling();
-}

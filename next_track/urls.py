@@ -31,6 +31,7 @@ from catalog.views_web import (
     spotify_export_ajax,
     submit_feedback,
     track_features_ajax,
+    track_preview_ajax,
 )
 
 
@@ -107,6 +108,8 @@ urlpatterns = [
     path('ajax/add-track/', add_to_playlist_ajax, name='add_track_ajax'),
     # Polled by search pages while background audio analysis is still running.
     path('ajax/track-features/', track_features_ajax, name='track_features_ajax'),
+    # Returns a freshly-signed preview URL; Deezer's expire after ~24h.
+    path('ajax/track-preview/', track_preview_ajax, name='track_preview_ajax'),
 
     # Shared playlists
     path('shared/<uuid:token>/', SharedPlaylistView.as_view(), name='shared_playlist'),

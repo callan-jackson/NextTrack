@@ -93,15 +93,6 @@
     .legend-result { background: rgba(255, 99, 132, 0.8); }
 
     /* Spotify Embed Styling */
-    .spotify-embed {
-        margin: 1rem 0;
-        border-radius: 12px;
-        overflow: hidden;
-    }
-    .spotify-embed iframe {
-        border: none;
-        border-radius: 12px;
-    }
 
     /* Feedback Buttons - Professional Circular Design */
     .feedback-section {
@@ -168,27 +159,6 @@
     /* Toast, modal, genre-tag, btn-add, unanalyzed-warning styles are in components.css */
 
     /* Spotify Open Link Button */
-    .btn-spotify-open {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.4rem;
-        background: #1db954;
-        color: white;
-        padding: 0.4rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.8rem;
-        font-weight: 500;
-        text-decoration: none;
-        margin-top: 0.5rem;
-        transition: all 0.2s ease;
-    }
-    .btn-spotify-open:hover {
-        background: #1ed760;
-        transform: scale(1.02);
-    }
-    .btn-spotify-open i {
-        font-size: 0.7rem;
-    }
 
     /* Recommendations Header with Export Button */
     .recommendations-header {
@@ -1516,21 +1486,17 @@
                 </div>
                 <p class="track-artist">{{ track.artist.name }}</p>
 
-                <!-- Spotify Embed Player (lazy-loaded) -->
-                <div class="spotify-embed">
-                    <iframe
-                        data-src="https://open.spotify.com/embed/track/{{ track.id }}?utm_source=generator&theme=0"
-                        width="100%"
-                        height="152"
-                        frameBorder="0"
-                        allowfullscreen=""
-                        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                        title="Spotify player for {{ track.title }} by {{ track.artist.name }}">
-                    </iframe>
-                    <!-- Fallback link for restricted embeds -->
-                    <a href="https://open.spotify.com/track/{{ track.id }}" target="_blank" rel="noopener" class="btn-spotify-open">
-                        Open in Spotify <i class="fa-solid fa-external-link-alt"></i>
-                    </a>
+                <!-- 30-second preview: the same clip the audio analyser measured -->
+                <div class="preview-row">
+                    <button type="button" class="preview-btn"
+                            data-track-id="{{ track.id }}"
+                            data-track-title="{{ track.title|escapejs }}"
+                            data-state="idle"
+                            aria-label="Play 30 second preview of {{ track.title }}">
+                        <i class="fa-solid fa-play"></i>
+                        <span class="preview-label">Preview</span>
+                        <span class="preview-progress"><span class="preview-progress-fill"></span></span>
+                    </button>
                 </div>
 
                 <div class="track-features">

@@ -215,3 +215,85 @@
 .unanalyzed-warning i {
     font-size: 0.7rem;
 }
+
+/* ==================== Preview player ====================
+   Plays the same 30-second clip the audio analyser measures, replacing the
+   Spotify embed iframes that broke when track IDs stopped being Spotify IDs. */
+.preview-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.9rem;
+    min-height: 40px;
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    background: var(--bg-secondary);
+    color: var(--text-color);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.preview-btn:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--primary-color);
+}
+
+.preview-btn:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+.preview-btn.is-playing {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.preview-btn i {
+    font-size: 0.8rem;
+    width: 12px;
+    text-align: center;
+}
+
+.preview-btn[data-state="error"] {
+    color: var(--text-dim);
+    border-color: var(--border-color);
+    cursor: default;
+}
+
+/* Progress is drawn as a fill along the bottom edge of the button itself,
+   which keeps a player inside a track card without adding a second row. */
+.preview-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 2px;
+    background: transparent;
+}
+
+.preview-progress-fill {
+    height: 100%;
+    width: 0;
+    background: var(--primary-color);
+    transition: width 0.2s linear;
+}
+
+.preview-label {
+    white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+    .preview-btn {
+        min-height: 44px;
+        flex: 1;
+        justify-content: center;
+    }
+}
+
+.preview-row {
+    margin: 0.6rem 0 0.25rem;
+}

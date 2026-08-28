@@ -1200,3 +1200,46 @@ def track_features_ajax(request: HttpRequest) -> JsonResponse:
             for track in tracks
         ]
     })
+
+
+def track_preview_ajax(request: HttpRequest) -> JsonResponse:
+    """Return a currently-valid preview-clip URL for a track.
+
+    Deezer signs preview URLs with a short expiry (~24h), so the value stored
+    at ingest time reliably 403s by the time anyone presses play. The URL has
+    to be re-fetched from the API rather than served from the database, so the
+    fresh one is cached just under its lifetime to keep this off the API for
+    repeat plays.
+    """
+    from django.core.cache import cache
+
+    track_id = request.GET.get('id', '').strip()
+    if not track_id:
+        return JsonResponse({'error': 'missing id'}, status=400)
+
+    cache_key = f'preview_url:{track_id}'
+    cached = cache.get(cache_key)
+    if cached:
+        return JsonResponse({'url': cached, 'cached': True})
+
+    try:
+        track = Track.objects.only('id', 'preview_url').get(id=track_id)
+    except Track.DoesNotExist:
+        return JsonResponse({'error': 'unknown track'}, status=404)
+
+    url = None
+    if track.id.startswith('dz-'):
+        from catalog.deezer_client import get_deezer_client
+
+        payload = get_deezer_client().get_track(track.id[3:])
+        url = (payload or {}).get('preview')
+
+    if not url:
+        # Tracks imported before the Deezer switch have no preview to serve.
+        return JsonResponse({'error': 'no preview available'}, status=404)
+
+    if url != track.preview_url:
+        Track.objects.filter(pk=track.pk).update(preview_url=url)
+
+    cache.set(cache_key, url, timeout=20 * 3600)
+    return JsonResponse({'url': url, 'cached': False})

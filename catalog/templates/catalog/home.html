@@ -481,6 +481,15 @@
                 </div>
             </div>
             <div class="track-actions">
+                <button type="button" class="preview-btn"
+                        data-track-id="{{ track.id }}"
+                        data-track-title="{{ track.title|escapejs }}"
+                        data-state="idle"
+                        aria-label="Play 30 second preview of {{ track.title }}">
+                    <i class="fa-solid fa-play"></i>
+                    <span class="preview-label">Preview</span>
+                    <span class="preview-progress"><span class="preview-progress-fill"></span></span>
+                </button>
                 <form method="post" action="/builder/" class="inline-form">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="add">
@@ -986,6 +995,14 @@
                         </div>
                     </div>
                     <div class="track-actions">
+                        <button type="button" class="preview-btn"
+                                data-track-id="${escapeHtml(track.id)}"
+                                data-track-title="${escapeHtml(track.title)}"
+                                data-state="idle">
+                            <i class="fa-solid fa-play"></i>
+                            <span class="preview-label">Preview</span>
+                            <span class="preview-progress"><span class="preview-progress-fill"></span></span>
+                        </button>
                         <button type="button" class="btn btn-small btn-add" data-track-id="${track.id}">
                             <i class="fa-solid fa-plus"></i> Add
                         </button>
@@ -1169,6 +1186,9 @@ document.addEventListener('click', function(e) {
                     '<div class="feature-item tempo"><i class="fa-solid fa-gauge-high"></i><span class="label">BPM</span><span class="value">' + Math.round(track.tempo || 0) + '</span></div>' +
                     '</div></div>' +
                     '<div class="track-actions">' +
+                    '<button type="button" class="preview-btn" data-state="idle" data-track-id="' + escapeHtml(track.id) + '" data-track-title="' + escapeHtml(track.title) + '">' +
+                    '<i class="fa-solid fa-play"></i><span class="preview-label">Preview</span>' +
+                    '<span class="preview-progress"><span class="preview-progress-fill"></span></span></button>' +
                     '<form method="post" action="/builder/" class="inline-form">' +
                     '<input type="hidden" name="csrfmiddlewaretoken" value="' + csrfToken + '">' +
                     '<input type="hidden" name="action" value="add">' +

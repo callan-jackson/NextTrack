@@ -511,3 +511,74 @@ class TrackFeaturesAjaxTestCase(TestCase):
         response = self.client.get('/ajax/track-features/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['tracks'], [])
+
+
+class TrackPreviewAjaxTestCase(TestCase):
+    """The endpoint backing the preview player.
+
+    Deezer signs preview URLs with a ~24h expiry, so a URL stored at ingest
+    time reliably 403s by the time someone presses play. These tests pin the
+    refetch-and-cache behaviour that works around that.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.artist = Artist.objects.create(id='prev-artist', name='Preview Artist')
+        cls.deezer = Track.objects.create(
+            id='dz-555', title='Deezer Track', artist=cls.artist,
+            preview_url='https://cdnt-preview.dzcdn.net/stale.mp3?hdnea=exp=1',
+        )
+        cls.legacy = Track.objects.create(
+            id='legacy-1', title='Legacy Track', artist=cls.artist, preview_url=None,
+        )
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def _client(self, preview='https://cdnt-preview.dzcdn.net/fresh.mp3?hdnea=exp=9'):
+        client = MagicMock()
+        client.get_track.return_value = {'id': 555, 'preview': preview}
+        return client
+
+    def test_returns_a_freshly_fetched_url(self):
+        with patch('catalog.deezer_client.get_deezer_client', return_value=self._client()):
+            response = self.client.get('/ajax/track-preview/', {'id': 'dz-555'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('fresh.mp3', response.json()['url'])
+
+    def test_stale_stored_url_is_replaced(self):
+        """The refreshed URL is persisted so the DB does not keep a dead link."""
+        with patch('catalog.deezer_client.get_deezer_client', return_value=self._client()):
+            self.client.get('/ajax/track-preview/', {'id': 'dz-555'})
+
+        self.deezer.refresh_from_db()
+        self.assertIn('fresh.mp3', self.deezer.preview_url)
+
+    def test_second_request_is_served_from_cache(self):
+        """Pressing play twice must not mean two Deezer calls."""
+        client = self._client()
+        with patch('catalog.deezer_client.get_deezer_client', return_value=client):
+            self.client.get('/ajax/track-preview/', {'id': 'dz-555'})
+            second = self.client.get('/ajax/track-preview/', {'id': 'dz-555'})
+
+        self.assertTrue(second.json()['cached'])
+        self.assertEqual(client.get_track.call_count, 1)
+
+    def test_track_without_preview_returns_404(self):
+        response = self.client.get('/ajax/track-preview/', {'id': 'legacy-1'})
+        self.assertEqual(response.status_code, 404)
+
+    def test_provider_returning_no_preview_is_404_not_500(self):
+        with patch('catalog.deezer_client.get_deezer_client', return_value=self._client(preview=None)):
+            response = self.client.get('/ajax/track-preview/', {'id': 'dz-555'})
+        self.assertEqual(response.status_code, 404)
+
+    def test_unknown_track_returns_404(self):
+        response = self.client.get('/ajax/track-preview/', {'id': 'dz-nope'})
+        self.assertEqual(response.status_code, 404)
+
+    def test_missing_id_returns_400(self):
+        response = self.client.get('/ajax/track-preview/')
+        self.assertEqual(response.status_code, 400)
