@@ -17,7 +17,7 @@
         {
             target: '.search-form, #search-form, .search-container',
             title: 'Search for Music',
-            content: 'Start by searching for songs or artists you enjoy. We\'ll find them in our database or fetch them from Spotify.',
+            content: 'Start by searching for songs or artists you enjoy. We\'ll find them in our catalogue or pull them in live from Deezer.',
             position: 'bottom'
         },
         {

@@ -56,6 +56,41 @@
         display: flex;
         align-items: flex-start;
     }
+    .track-main-info {
+        min-width: 0;
+        flex: 1;
+    }
+    .track-main-info .track-info {
+        min-width: 0;
+    }
+    .playlist-item-header .track-title {
+        overflow-wrap: anywhere;
+    }
+
+    @media (max-width: 480px) {
+        .playlist-item-with-player {
+            padding: 0.85rem;
+        }
+        /* Icon-only Remove on phones: the labelled button was pushed past the
+           right edge by long titles and clipped to "Remo". */
+        .playlist-item-header .btn-remove .remove-label {
+            display: none;
+        }
+        .playlist-item-header .btn-remove {
+            min-width: 44px;
+            min-height: 44px;
+            padding: 0.5rem;
+            justify-content: center;
+        }
+        .track-features-small {
+            flex-wrap: wrap;
+            gap: 0.35rem 0.75rem;
+        }
+        .drag-handle {
+            display: none;   /* drag-to-reorder is a pointer affordance; it only eats width on touch */
+        }
+    }
+
     /* Modal, unanalyzed-warning, btn-add styles are in components.css */
 
     /* Builder-specific modal-header icon color override */
@@ -157,10 +192,10 @@
     </div>
 </div>
 
-<!-- Spotify Preview Notice -->
-<div class="alert alert-info">
-    <i class="fa-brands fa-spotify"></i>
-    <span>Note: Spotify plays 30-second previews unless you are logged into the Spotify app on this device. Due to browser security policies, we cannot auto-play the next song. Please click play on each track.</span>
+<!-- Preview notice -->
+<div class="spotify-notice">
+    <i class="fa-solid fa-headphones"></i>
+    <span>Press Preview on any track to hear the 30-second clip its audio features were measured from.</span>
 </div>
 
 <div class="playlist-section">
@@ -204,7 +239,7 @@
                         data-track-id="{{ track.id }}"
                         data-track-title="{{ track.title }}"
                         data-track-artist="{{ track.artist.name }}">
-                    <i class="fa-solid fa-xmark"></i> Remove
+                    <i class="fa-solid fa-xmark"></i><span class="remove-label"> Remove</span>
                 </button>
             </div>
 

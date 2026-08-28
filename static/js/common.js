@@ -124,7 +124,7 @@ function hideDuplicateModal() {
  * Add track to playlist via AJAX
  * Handles duplicate confirmation and success notifications
  *
- * @param {string} trackId - Spotify track ID
+ * @param {string} trackId - Track ID
  * @param {HTMLElement} button - The clicked button element
  * @param {boolean} forceAdd - If true, add even if duplicate
  */
@@ -296,7 +296,7 @@ function trapFocus(modalElement) {
 }
 
 /**
- * Lazy-load Spotify Embeds via IntersectionObserver
+ * (removed) Lazy embed loading
  * Swaps data-src to src on iframes when they enter the viewport.
  */
 // initLazyEmbeds removed alongside initEmbedFailureHandling: there are no
@@ -304,7 +304,7 @@ function trapFocus(modalElement) {
 
 
 /**
- * Spotify Embed Failure Handling
+ * (removed) Embed failure handling
  * After 5 seconds, if an iframe hasn't loaded, replace with a fallback card.
  * For lazy-loaded iframes (data-src), the timeout starts when src is set.
  */

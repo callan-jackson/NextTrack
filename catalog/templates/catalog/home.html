@@ -618,12 +618,12 @@
     <div style="display: none;">
     <table style="width: 100%; font-size: 0.9rem; border-collapse: collapse;">
         <tr style="border-bottom: 1px solid var(--border-color);">
-            <td style="padding: 0.5rem 0; color: var(--primary-color); font-weight: 600; width: 140px;">Kaggle Dataset</td>
-            <td style="padding: 0.5rem 0; color: var(--text-muted);">30,000+ tracks with pre-analyzed audio features (our recommendation corpus)</td>
+            <td style="padding: 0.5rem 0; color: var(--primary-color); font-weight: 600; width: 140px;">Audio analysis</td>
+            <td style="padding: 0.5rem 0; color: var(--text-muted);">Energy, mood, danceability, acousticness and tempo measured from each track's 30-second clip with librosa DSP &mdash; computed by us, not fetched from an API</td>
         </tr>
         <tr style="border-bottom: 1px solid var(--border-color);">
-            <td style="padding: 0.5rem 0; color: var(--primary-color); font-weight: 600;">Spotify API</td>
-            <td style="padding: 0.5rem 0; color: var(--text-muted);">Live search, track metadata, audio feature analysis for new tracks</td>
+            <td style="padding: 0.5rem 0; color: var(--primary-color); font-weight: 600;">Deezer API</td>
+            <td style="padding: 0.5rem 0; color: var(--text-muted);">Live search, track metadata, and the preview clips the analyser measures</td>
         </tr>
         <tr style="border-bottom: 1px solid var(--border-color);">
             <td style="padding: 0.5rem 0; color: var(--primary-color); font-weight: 600;">MusicBrainz</td>
@@ -882,7 +882,7 @@
         const tracks = data.tracks;
         const count = data.count;
         const localCount = data.local_count;
-        const spotifyCount = data.spotify_count;
+        const spotifyCount = data.provider_count ?? data.spotify_count;
 
         if (tracks.length === 0) {
             const wsStatus = isConnected ? '<span style="color: var(--color-success);">Connected</span>' : '<span style="color: var(--text-dim);">Offline</span>';
@@ -892,7 +892,7 @@
                     <div class="no-results">
                         <p>No tracks found for "${escapeHtml(query)}"</p>
                         <p style="font-size: 0.9rem; margin-top: 0.75rem;">Try: <strong>Beatles</strong>, <strong>Radiohead</strong>, or <strong>Daft Punk</strong></p>
-                        <p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 0.5rem;">30,000+ catalog tracks + Spotify live search. WebSocket: ${wsStatus}</p>
+                        <p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 0.5rem;">A growing analysed catalogue + live Deezer search. WebSocket: ${wsStatus}</p>
                     </div>
                 </div>
             `;

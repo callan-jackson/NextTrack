@@ -27,7 +27,7 @@
         "@type": "MusicGroup",
         "name": "{{ track.artist.name|escapejs }}"
       },
-      "url": "https://open.spotify.com/track/{{ track.id }}"{% if track.genres.all %},
+      {% if track.genres.all %}
       "genre": [{% for genre in track.genres.all|slice:":3" %}"{{ genre.name|escapejs }}"{% if not forloop.last %}, {% endif %}{% endfor %}]{% endif %},
       "position": {{ forloop.counter }}
     }{% if not forloop.last %},{% endif %}
@@ -91,8 +91,6 @@
     }
     .legend-input { background: rgba(29, 185, 84, 0.8); }
     .legend-result { background: rgba(255, 99, 132, 0.8); }
-
-    /* Spotify Embed Styling */
 
     /* Feedback Buttons - Professional Circular Design */
     .feedback-section {
@@ -158,7 +156,6 @@
 
     /* Toast, modal, genre-tag, btn-add, unanalyzed-warning styles are in components.css */
 
-    /* Spotify Open Link Button */
 
     /* Recommendations Header with Export Button */
     .recommendations-header {
@@ -1366,10 +1363,10 @@
 </div>
 {% else %}
 
-<!-- Spotify Preview Notice -->
-<div class="alert alert-info">
-    <i class="fa-brands fa-spotify"></i>
-    <span>To hear full tracks, please log in to Spotify in another browser tab. Otherwise, 30-second previews will play.</span>
+<!-- Preview notice -->
+<div class="spotify-notice">
+    <i class="fa-solid fa-headphones"></i>
+    <span>Every track plays a 30-second preview — the exact clip the recommender analysed to build your matches.</span>
 </div>
 
 <!-- Feedback Applied Indicator -->

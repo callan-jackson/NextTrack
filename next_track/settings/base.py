@@ -176,7 +176,7 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': (
         'Content-based music recommendation engine using 5D audio feature vectors '
         '(valence, energy, danceability, acousticness, tempo). Supports playlist-based '
-        'recommendations, hybrid search (local DB + Spotify), library statistics, '
+        'recommendations, hybrid search (local catalogue + live Deezer ingest), library statistics, '
         'user surveys, and analytics event tracking.'
     ),
     'VERSION': '1.0.0',
